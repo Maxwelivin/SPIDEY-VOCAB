@@ -1652,6 +1652,35 @@
       const [isFlipped, setIsFlipped] = useState(false);
 const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
 
+// === 觸控滑動狀態 (Swipe Gestures) ===
+      const touchStartX = useRef(null);
+      const touchEndX = useRef(null);
+      const SWIPE_THRESHOLD = 50; // 定義有效滑動的最小距離 (50px)
+
+      const onTouchStart = (e) => {
+        touchStartX.current = e.targetTouches[0].clientX;
+        touchEndX.current = null; // 重置結束點
+      };
+
+      const onTouchMove = (e) => {
+        touchEndX.current = e.targetTouches[0].clientX;
+      };
+
+      const onTouchEnd = () => {
+        if (!touchStartX.current || !touchEndX.current) return;
+        const distance = touchStartX.current - touchEndX.current; // 計算位移差
+        
+        if (distance > SWIPE_THRESHOLD && !stateRef.current.swipeAnim) {
+          // 向左滑 (距離為正) -> 模糊/忘記
+          window._handleFlashcardUnclear(stateRef.current.currentWord);
+        } else if (distance < -SWIPE_THRESHOLD && !stateRef.current.swipeAnim) {
+          // 向右滑 (距離為負) -> 清楚掌握
+          window._handleFlashcardGotIt(stateRef.current.currentWord);
+        }
+      };
+
+
+
 
  
       
@@ -2547,6 +2576,9 @@ const [currentPage, setCurrentPage] = useState(1);
                           <div 
                             className={`perspective-1000 w-full cursor-pointer transition-all duration-300 ease-in-out ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
                             onClick={() => !swipeAnim && setIsFlipped(!isFlipped)}
+                            onTouchStart={onTouchStart}
+                            onTouchMove={onTouchMove}
+                            onTouchEnd={onTouchEnd}
                           >
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
                               <div className="absolute inset-0 backface-hidden bg-white border-4 border-slate-900 rounded-2xl shadow-[8px_8px_0_0_#2563eb] flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform">
