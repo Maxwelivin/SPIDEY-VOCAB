@@ -1651,36 +1651,73 @@
 
       const [isFlipped, setIsFlipped] = useState(false);
 const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
-
-// === 觸控滑動狀態 (Continuous Swipe Engine) ===
+// === 60FPS 觸控滑動引擎 (Direct DOM Engine) ===
       const touchStartX = useRef(null);
-      const [swipeOffset, setSwipeOffset] = useState(0); // 即時位移值
-      const SWIPE_THRESHOLD = 80; // 加大物理閾值，避免誤觸
+      const currentOffset = useRef(0);
+      const cardRef = useRef(null);
+      const overlayRef = useRef(null);
+      const SWIPE_THRESHOLD = 80;
 
       const onTouchStart = (e) => {
         touchStartX.current = e.targetTouches[0].clientX;
-        setSwipeOffset(0);
+        currentOffset.current = 0;
+        if (cardRef.current) {
+          cardRef.current.style.transition = 'none'; // 手指按下瞬間解除動畫，達成 0 延遲跟手
+        }
+        if (overlayRef.current) {
+          overlayRef.current.style.transition = 'none';
+        }
       };
 
       const onTouchMove = (e) => {
         if (!touchStartX.current || stateRef.current.swipeAnim) return;
-        // 計算當下手指與起點的即時 X 軸差值
-        const currentX = e.targetTouches[0].clientX;
-        setSwipeOffset(currentX - touchStartX.current); 
+        
+        const diff = e.targetTouches[0].clientX - touchStartX.current;
+        currentOffset.current = diff;
+
+        // 繞過 React，直接注入 GPU 渲染層，絕對絲滑
+        if (cardRef.current) {
+          cardRef.current.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
+        }
+        
+        if (overlayRef.current) {
+          if (diff > 0) {
+             overlayRef.current.style.backgroundColor = '#4ade80'; // 向右變綠
+             overlayRef.current.style.opacity = Math.min(diff / 150, 0.6);
+          } else if (diff < 0) {
+             overlayRef.current.style.backgroundColor = '#ef4444'; // 向左變紅
+             overlayRef.current.style.opacity = Math.min(Math.abs(diff) / 150, 0.6);
+          }
+        }
       };
 
       const onTouchEnd = () => {
         if (!touchStartX.current || stateRef.current.swipeAnim) return;
-        const finalOffset = swipeOffset; // 鎖定手指離開瞬間的位移
+        const finalOffset = currentOffset.current;
         
         if (finalOffset > SWIPE_THRESHOLD) {
+          // 滑動成功，清除行內樣式，將控制權交還給 Tailwind 進行飛出動畫
+          if (cardRef.current) cardRef.current.style.transform = ''; 
+          if (overlayRef.current) overlayRef.current.style.opacity = 0;
           window._handleFlashcardGotIt(stateRef.current.currentWord);
         } else if (finalOffset < -SWIPE_THRESHOLD) {
+          if (cardRef.current) cardRef.current.style.transform = ''; 
+          if (overlayRef.current) overlayRef.current.style.opacity = 0;
           window._handleFlashcardUnclear(stateRef.current.currentWord);
+        } else {
+          // 未達物理閾值，啟動彈回動畫
+          if (cardRef.current) {
+            cardRef.current.style.transition = 'transform 0.3s ease-out';
+            cardRef.current.style.transform = `translateX(0px) rotate(0deg)`;
+          }
+          if (overlayRef.current) {
+            overlayRef.current.style.transition = 'opacity 0.3s ease-out';
+            overlayRef.current.style.opacity = 0;
+          }
         }
         
-        setSwipeOffset(0); // 條件未滿則彈回原位
         touchStartX.current = null;
+        currentOffset.current = 0;
       };
 
 
@@ -2577,9 +2614,10 @@ const [currentPage, setCurrentPage] = useState(1);
 
 
                           <div 
-                            className={`perspective-1000 w-full cursor-pointer touch-none ${(!swipeAnim && swipeOffset === 0) ? 'transition-all duration-300 ease-in-out' : ''} ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
-                            style={swipeOffset !== 0 && !swipeAnim ? { transform: `translateX(${swipeOffset}px) rotate(${swipeOffset * 0.05}deg)` } : {}}
-                            onClick={() => !swipeAnim && Math.abs(swipeOffset) < 10 && setIsFlipped(!isFlipped)}
+                            ref={cardRef}
+                            className={`perspective-1000 w-full cursor-pointer touch-none ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0 transition-all duration-300 ease-in-out' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0 transition-all duration-300 ease-in-out' : ''}`} 
+                            style={{ touchAction: 'none' }} // 絕對封印 iOS/Android 上下滑動
+                            onClick={() => !swipeAnim && Math.abs(currentOffset.current) < 10 && setIsFlipped(!isFlipped)}
                             onTouchStart={onTouchStart}
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
@@ -2587,11 +2625,9 @@ const [currentPage, setCurrentPage] = useState(1);
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
                                {/* === 即時物理反饋：動態顏色遮罩 === */}
                                <div 
-                                 className="absolute inset-0 z-50 rounded-2xl pointer-events-none transition-opacity duration-100" 
-                                 style={{ 
-                                   backgroundColor: swipeOffset > 0 ? '#4ade80' : '#ef4444', 
-                                   opacity: (swipeOffset !== 0 && !swipeAnim) ? Math.min(Math.abs(swipeOffset) / 150, 0.6) : 0 
-                                 }}
+                                 ref={overlayRef}
+                                 className="absolute inset-0 z-50 rounded-2xl pointer-events-none" 
+                                 style={{ opacity: 0 }}
                                ></div>
                                
                                {/* 以下保留原本的卡片正反面內容 */}
