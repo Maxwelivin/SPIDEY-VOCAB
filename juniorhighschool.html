@@ -1652,33 +1652,36 @@
       const [isFlipped, setIsFlipped] = useState(false);
 const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
 
-// === 觸控滑動狀態 (Swipe Gestures) ===
+// === 觸控滑動狀態 (Continuous Swipe Engine) ===
       const touchStartX = useRef(null);
-      const touchEndX = useRef(null);
-      const SWIPE_THRESHOLD = 50; // 定義有效滑動的最小距離 (50px)
+      const [swipeOffset, setSwipeOffset] = useState(0); // 即時位移值
+      const SWIPE_THRESHOLD = 80; // 加大物理閾值，避免誤觸
 
       const onTouchStart = (e) => {
         touchStartX.current = e.targetTouches[0].clientX;
-        touchEndX.current = null; // 重置結束點
+        setSwipeOffset(0);
       };
 
       const onTouchMove = (e) => {
-        touchEndX.current = e.targetTouches[0].clientX;
+        if (!touchStartX.current || stateRef.current.swipeAnim) return;
+        // 計算當下手指與起點的即時 X 軸差值
+        const currentX = e.targetTouches[0].clientX;
+        setSwipeOffset(currentX - touchStartX.current); 
       };
 
       const onTouchEnd = () => {
-        if (!touchStartX.current || !touchEndX.current) return;
-        const distance = touchStartX.current - touchEndX.current; // 計算位移差
+        if (!touchStartX.current || stateRef.current.swipeAnim) return;
+        const finalOffset = swipeOffset; // 鎖定手指離開瞬間的位移
         
-        if (distance > SWIPE_THRESHOLD && !stateRef.current.swipeAnim) {
-          // 向左滑 (距離為正) -> 模糊/忘記
-          window._handleFlashcardUnclear(stateRef.current.currentWord);
-        } else if (distance < -SWIPE_THRESHOLD && !stateRef.current.swipeAnim) {
-          // 向右滑 (距離為負) -> 清楚掌握
+        if (finalOffset > SWIPE_THRESHOLD) {
           window._handleFlashcardGotIt(stateRef.current.currentWord);
+        } else if (finalOffset < -SWIPE_THRESHOLD) {
+          window._handleFlashcardUnclear(stateRef.current.currentWord);
         }
+        
+        setSwipeOffset(0); // 條件未滿則彈回原位
+        touchStartX.current = null;
       };
-
 
 
 
@@ -2574,14 +2577,25 @@ const [currentPage, setCurrentPage] = useState(1);
 
 
                           <div 
-                            className={`perspective-1000 w-full cursor-pointer transition-all duration-300 ease-in-out ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
-                            onClick={() => !swipeAnim && setIsFlipped(!isFlipped)}
+                            className={`perspective-1000 w-full cursor-pointer touch-none ${(!swipeAnim && swipeOffset === 0) ? 'transition-all duration-300 ease-in-out' : ''} ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
+                            style={swipeOffset !== 0 && !swipeAnim ? { transform: `translateX(${swipeOffset}px) rotate(${swipeOffset * 0.05}deg)` } : {}}
+                            onClick={() => !swipeAnim && Math.abs(swipeOffset) < 10 && setIsFlipped(!isFlipped)}
                             onTouchStart={onTouchStart}
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
                           >
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-                              <div className="absolute inset-0 backface-hidden bg-white border-4 border-slate-900 rounded-2xl shadow-[8px_8px_0_0_#2563eb] flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform">
+                               {/* === 即時物理反饋：動態顏色遮罩 === */}
+                               <div 
+                                 className="absolute inset-0 z-50 rounded-2xl pointer-events-none transition-opacity duration-100" 
+                                 style={{ 
+                                   backgroundColor: swipeOffset > 0 ? '#4ade80' : '#ef4444', 
+                                   opacity: (swipeOffset !== 0 && !swipeAnim) ? Math.min(Math.abs(swipeOffset) / 150, 0.6) : 0 
+                                 }}
+                               ></div>
+                               
+                               {/* 以下保留原本的卡片正反面內容 */}
+                               <div className="absolute inset-0 backface-hidden bg-white border-4 border-slate-900 rounded-2xl shadow-[8px_8px_0_0_#2563eb] flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform">
                                 <div className="absolute top-4 right-4 p-2 text-slate-400 hover:text-blue-600 transition-colors" onClick={(e) => { e.stopPropagation(); playAudio(currentWord.en); }}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                                 </div>
