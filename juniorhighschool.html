@@ -1647,100 +1647,12 @@
 
       const [feedback, setFeedback] = useState(null); 
       const [attemptCount, setAttemptCount] = useState(0); 
-      const [isDictationRevealed, setIsDictationRevealed] = useState(false);
+const [isDictationRevealed, setIsDictationRevealed] = useState(false);
+const [hasFailedCurrent, setHasFailedCurrent] = useState(false); // 新增：追蹤該題是否已失誤
 
       const [isFlipped, setIsFlipped] = useState(false);
 const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
-
-// === 60FPS 觸控滑動引擎 (Direct DOM Engine) ===
-      const touchStartX = useRef(null);
-      const currentOffset = useRef(0);
-      const cardRef = useRef(null);
-      const overlayRef = useRef(null);
-      const SWIPE_THRESHOLD = 80;
-
-      // 1. 強制封印行動端瀏覽器預設滾動 (徹底解決上下飄移)
-      useEffect(() => {
-        const card = cardRef.current;
-        if (card) {
-          const preventScroll = (e) => e.preventDefault();
-          // { passive: false } 是奪取 iOS 觸控控制權的唯一底層解法
-          card.addEventListener('touchmove', preventScroll, { passive: false });
-          return () => card.removeEventListener('touchmove', preventScroll);
-        }
-      }, [direction, currentWord]);
-
-      // 2. 切換下一題時，瞬間重置 DOM 物理狀態 (徹底解決飛出時的卡頓與閃爍)
-      useEffect(() => {
-        if (cardRef.current) {
-          cardRef.current.style.transition = 'none';
-          cardRef.current.style.transform = '';
-        }
-        if (overlayRef.current) {
-          overlayRef.current.style.transition = 'none';
-          overlayRef.current.style.opacity = '0';
-        }
-      }, [currentWord]);
-
-      const onTouchStart = (e) => {
-        touchStartX.current = e.targetTouches[0].clientX;
-        currentOffset.current = 0;
-        if (cardRef.current) cardRef.current.style.transition = 'none';
-        if (overlayRef.current) overlayRef.current.style.transition = 'none';
-      };
-
-      const onTouchMove = (e) => {
-        if (!touchStartX.current || stateRef.current.swipeAnim) return;
-        const diff = e.targetTouches[0].clientX - touchStartX.current;
-        currentOffset.current = diff;
-
-        if (cardRef.current) {
-          cardRef.current.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
-        }
-        if (overlayRef.current) {
-          if (diff > 0) {
-             overlayRef.current.style.backgroundColor = '#4ade80';
-             overlayRef.current.style.opacity = Math.min(diff / 150, 0.6);
-          } else {
-             overlayRef.current.style.backgroundColor = '#ef4444';
-             overlayRef.current.style.opacity = Math.min(Math.abs(diff) / 150, 0.6);
-          }
-        }
-      };
-
-      const onTouchEnd = () => {
-        if (!touchStartX.current || stateRef.current.swipeAnim) return;
-        const finalOffset = currentOffset.current;
-        
-        if (finalOffset > SWIPE_THRESHOLD) {
-          // 動量飛出：不交還控制權，直接沿用行內樣式把卡片「甩」出螢幕
-          if (cardRef.current) {
-            cardRef.current.style.transition = 'transform 0.3s ease-out';
-            cardRef.current.style.transform = `translateX(${window.innerWidth}px) rotate(15deg)`;
-          }
-          window._handleFlashcardGotIt(stateRef.current.currentWord);
-        } else if (finalOffset < -SWIPE_THRESHOLD) {
-          if (cardRef.current) {
-            cardRef.current.style.transition = 'transform 0.3s ease-out';
-            cardRef.current.style.transform = `translateX(-${window.innerWidth}px) rotate(-15deg)`;
-          }
-          window._handleFlashcardUnclear(stateRef.current.currentWord);
-        } else {
-          // 未達物理閾值，彈回原位
-          if (cardRef.current) {
-            cardRef.current.style.transition = 'transform 0.3s ease-out';
-            cardRef.current.style.transform = `translateX(0px) rotate(0deg)`;
-          }
-          if (overlayRef.current) {
-            overlayRef.current.style.transition = 'opacity 0.3s ease-out';
-            overlayRef.current.style.opacity = '0';
-          }
-        }
-        
-        touchStartX.current = null;
-        currentOffset.current = 0;
-      };
-
+const [undoStack, setUndoStack] = useState([]); // 儲存歷史狀態的快照棧
 
 
  
@@ -1780,6 +1692,8 @@ const [currentPage, setCurrentPage] = useState(1);
       const fileInputRef = useRef(null);
 
       const errorListRef = useRef(errorList);
+const historicalErrorsRef = useRef(historicalErrors);
+const undoStackRef = useRef(undoStack);
       const modeRef = useRef(mode);
       const directionRef = useRef(direction);
       const practicedWordsRef = useRef(practicedWords);
@@ -1788,6 +1702,8 @@ const [currentPage, setCurrentPage] = useState(1);
       const battleStepRef = useRef(battleStep);
 
       useEffect(() => { errorListRef.current = errorList; }, [errorList]);
+useEffect(() => { historicalErrorsRef.current = historicalErrors; }, [historicalErrors]);
+useEffect(() => { undoStackRef.current = undoStack; }, [undoStack]);
       useEffect(() => { modeRef.current = mode; }, [mode]);
       useEffect(() => { directionRef.current = direction; }, [direction]);
       useEffect(() => { practicedWordsRef.current = practicedWords; }, [practicedWords]);
@@ -1795,7 +1711,8 @@ const [currentPage, setCurrentPage] = useState(1);
       useEffect(() => { battleIndexRef.current = battleIndex; }, [battleIndex]);
       useEffect(() => { battleStepRef.current = battleStep; }, [battleStep]);
 
-      const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status === 'wrong' || feedback?.status === 'correct';
+      // 移除 feedback?.status === 'wrong'，保持輸入框開啟
+const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status === 'correct';
 
       useEffect(() => {
         try {
@@ -1944,10 +1861,11 @@ const [currentPage, setCurrentPage] = useState(1);
         setCurrentWord(pool[0]); 
         setAskEnglish(true);
         setFeedback(null);
-        setAttemptCount(0);
-        setIsDictationRevealed(false);
-        setIsFlipped(false);
-        setSelectedOption(null);
+setAttemptCount(0); 
+setIsDictationRevealed(false);
+setIsFlipped(false);
+setSelectedOption(null);
+setHasFailedCurrent(false); // 新增：換題時重置失誤標記
       };
 
 
@@ -2171,49 +2089,80 @@ const [currentPage, setCurrentPage] = useState(1);
       window._handleHintClick = handleHintClick;
       // === 閃卡專屬捷徑控制 ===
      // === 閃卡專屬捷徑控制 (強固防呆版) ===
-      window._handleFlashcardUnclear = (word) => {
-        if (stateRef.current.swipeAnim) return; 
-        setSwipeAnim('left');
-        setTimeout(() => { 
-          recordError(word); 
-          if (mode === 'scan') {
-             const nextIdx = sessionIndex + 1;
-             setSessionIndex(nextIdx);
-             if (nextIdx >= sessionQueue.length) {
-                 setCurrentWord(null);
-                 setIsSessionActive(false);
-             } else {
-                 setCurrentWord(sessionQueue[nextIdx]);
-                 setIsFlipped(false);
-             }
-          } else {
-             generateQuestion(); 
-          }
-          setSwipeAnim(null); 
-        }, 300);
-      };
-      
-      window._handleFlashcardGotIt = (word) => {
-        if (stateRef.current.swipeAnim) return; 
-        setSwipeAnim('right');
-        setTimeout(() => { 
-          setPracticedWords(prev => prev.includes(word.en) ? prev : [...prev, word.en]); 
-          if (mode === 'scan') {
-             const nextIdx = sessionIndex + 1;
-             setSessionIndex(nextIdx);
-             if (nextIdx >= sessionQueue.length) {
-                 setCurrentWord(null);
-                 setIsSessionActive(false);
-             } else {
-                 setCurrentWord(sessionQueue[nextIdx]);
-                 setIsFlipped(false);
-             }
-          } else {
-             generateQuestion(); 
-          }
-          setSwipeAnim(null); 
-        }, 300);
-      };
+      // === 閃卡專屬捷徑控制 (包含 Undo 回溯機制) ===
+const captureSnapshot = () => ({
+    word: stateRef.current.currentWord,
+    errorList: errorListRef.current,
+    practicedWords: practicedWordsRef.current,
+    historicalErrors: historicalErrorsRef.current,
+    sessionIndex: sessionIndexRef.current
+});
+
+window._handleFlashcardUndo = () => {
+    if (stateRef.current.swipeAnim) return;
+    const stack = [...undoStackRef.current];
+    if (stack.length === 0) return; // 沒有歷史可回溯
+
+    const lastState = stack.pop();
+    setUndoStack(stack);
+
+    // 完美還原上一步的所有狀態（包含錯題本與大數據）
+    setCurrentWord(lastState.word);
+    setErrorList(lastState.errorList);
+    setPracticedWords(lastState.practicedWords);
+    setHistoricalErrors(lastState.historicalErrors);
+    setIsFlipped(false);
+    
+    if (modeRef.current === 'scan') {
+        setSessionIndex(lastState.sessionIndex);
+    }
+};
+
+window._handleFlashcardUnclear = (word) => {
+  if (stateRef.current.swipeAnim) return; 
+  setUndoStack(prev => [...prev, captureSnapshot()].slice(-20)); // 最多保留最近 20 步的快照
+  setSwipeAnim('left');
+  setTimeout(() => { 
+    recordError(word); 
+    if (mode === 'scan') {
+       const nextIdx = sessionIndex + 1;
+       setSessionIndex(nextIdx);
+       if (nextIdx >= sessionQueue.length) {
+           setCurrentWord(null);
+           setIsSessionActive(false);
+       } else {
+           setCurrentWord(sessionQueue[nextIdx]);
+           setIsFlipped(false);
+       }
+    } else {
+       generateQuestion(); 
+    }
+    setSwipeAnim(null); 
+  }, 300);
+};
+
+window._handleFlashcardGotIt = (word) => {
+  if (stateRef.current.swipeAnim) return; 
+  setUndoStack(prev => [...prev, captureSnapshot()].slice(-20));
+  setSwipeAnim('right');
+  setTimeout(() => { 
+    setPracticedWords(prev => prev.includes(word.en) ? prev : [...prev, word.en]); 
+    if (mode === 'scan') {
+       const nextIdx = sessionIndex + 1;
+       setSessionIndex(nextIdx);
+       if (nextIdx >= sessionQueue.length) {
+           setCurrentWord(null);
+           setIsSessionActive(false);
+       } else {
+           setCurrentWord(sessionQueue[nextIdx]);
+           setIsFlipped(false);
+       }
+    } else {
+       generateQuestion(); 
+    }
+    setSwipeAnim(null); 
+  }, 300);
+};
       window._toggleFlashcard = () => setIsFlipped(prev => !prev);
 
       // 更新 stateRef 以追蹤最新狀態
@@ -2230,28 +2179,25 @@ const [currentPage, setCurrentPage] = useState(1);
 
           
           // === 閃卡模式專屬按鍵攔截 ===
-          if (direction === 'flashcard') {
-             if (e.key === 'ArrowDown') {
-                 e.preventDefault(); 
-                 window._toggleFlashcard();
-             } else if (e.key === 'ArrowUp') {
-                 e.preventDefault(); 
-                 if (currentWord) window._playAudio(currentWord.en);
-             } else if (e.key === 'ArrowLeft' && isFlipped) {
-                 e.preventDefault();
-                 window._handleFlashcardUnclear(currentWord); // 傳入 currentWord
-             } else if (e.key === 'ArrowRight' && isFlipped) {
-                 e.preventDefault();
-                 window._handleFlashcardGotIt(currentWord); // 傳入 currentWord
-             }
-             return; 
-          }
-
-          if (e.key === 'Enter' && !e.shiftKey && isTerminalState) {
-             e.preventDefault();
-             window._handleNextAction();
-             return;
-          }
+if (direction === 'flashcard') {
+   if (e.key === 'Backspace') {
+       e.preventDefault();
+       window._handleFlashcardUndo();
+   } else if (e.key === 'ArrowDown') {
+       e.preventDefault(); 
+       window._toggleFlashcard();
+   } else if (e.key === 'ArrowUp') {
+       e.preventDefault(); 
+       if (currentWord) window._playAudio(currentWord.en);
+   } else if (e.key === 'ArrowLeft') { // 移除 && isFlipped，允許正面直接判定
+       e.preventDefault();
+       window._handleFlashcardUnclear(currentWord);
+   } else if (e.key === 'ArrowRight') { // 移除 && isFlipped，允許正面直接判定
+       e.preventDefault();
+       window._handleFlashcardGotIt(currentWord);
+   }
+   return; 
+}
 
           if ((direction === 'mcq-zh-en' || direction === 'mcq-en-zh') && !isTerminalState && !isInputFocused) {
             if (e.key === '1' && multipleChoiceOptions.length > 0) window._handleOptionClick(multipleChoiceOptions[0]);
@@ -2326,13 +2272,40 @@ const [currentPage, setCurrentPage] = useState(1);
           });
           possibleAnswers = [...new Set(possibleAnswers)];
           isCorrect = possibleAnswers.includes(normalizedInput) || possibleAnswers.some(ans => stripPunctuation(ans) === cleanNormalizedInput);
-        } else {
-          possibleAnswers = (currentWord.zh || "").split(/[;/]/).map(s => s.trim());
-          strippedAnswers = possibleAnswers.map(s => s.replace(/\(.*?\)/g, '').trim());
-          isCorrect = possibleAnswers.includes(normalizedInput) || strippedAnswers.includes(normalizedInput) || possibleAnswers.some(ans => stripPunctuation(ans) === cleanNormalizedInput) || strippedAnswers.some(ans => stripPunctuation(ans) === cleanNormalizedInput);
-        }
+       } else {
+  const answersToCompare = askEnglish ? possibleAnswers : strippedAnswers;
+  const hint = getHintMessage(normalizedInput, answersToCompare);
+  
+  // 加入 !hasFailedCurrent 條件，確保答案曝光後不再給瞎猜提示
+  if (hint && attemptCount === 0 && !hasFailedCurrent) {
+    setFeedback({ status: 'hint', msg: hint });
+    setAttemptCount(1);
+  } else {
+    const correctAnswer = askEnglish ? currentWord.en : currentWord.zh;
+    // 修改回饋文字，引導肌肉記憶輸入
+    setFeedback({ status: 'wrong', msg: `錯誤！請照打一次：「 ${correctAnswer} 」` });
+    
+    // 確保同一題只記錄一次錯題本
+    if (!hasFailedCurrent) recordError(currentWord); 
+    
+    setAttemptCount(0);
+    setHasFailedCurrent(true); // 標記為正在訂正狀態
+    if (direction === 'dictation') setIsDictationRevealed(true);
+  }
+}
 
         if (isCorrect) {
+// 新增：如果是在訂正狀態下答對，直接過關不給獎勵
+  if (hasFailedCurrent) {
+    setFeedback({ status: 'correct', msg: '✅ 訂正完成！' });
+    setTimeout(() => generateQuestion(), 600);
+    return;
+  }
+
+
+
+
+
           if (modeRef.current === 'battle') {
             const nextStep = battleStepRef.current + 1;
             if (nextStep > 4) {
@@ -2450,7 +2423,7 @@ const [currentPage, setCurrentPage] = useState(1);
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10">
                 <div className="w-full lg:w-auto">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">🕷️ Spidey Vocab</h1>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Spidey Vocab</h1>
                     <select 
   value={selectedBook}
   onChange={(e) => { setSelectedBook(e.target.value); e.target.blur(); }}
@@ -2467,15 +2440,15 @@ const [currentPage, setCurrentPage] = useState(1);
 </select>
                   </div>
                   <p className="text-slate-600 mt-2 text-sm font-bold uppercase tracking-wider">
-                    小心四周！
+                    各個擊破！
                   </p>
                 </div>
                 <div className="flex gap-3 w-full lg:w-auto">
                   <button onClick={exportData} className="flex-1 lg:flex-none px-4 py-3 sm:py-2 rounded-lg font-black text-slate-900 bg-amber-400 hover:bg-amber-300 transition-transform hover:-translate-y-1 border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] flex items-center justify-center gap-2 uppercase">
-                    SAVE (匯出)
+                    SAVE 
                   </button>
                   <button onClick={triggerImport} className="flex-1 lg:flex-none px-4 py-3 sm:py-2 rounded-lg font-black text-white bg-blue-600 hover:bg-blue-500 transition-transform hover:-translate-y-1 border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] flex items-center justify-center gap-2 uppercase">
-                    LOAD (匯入)
+                    LOAD 
                   </button>
                   <input type="file" accept=".json" ref={fileInputRef} onChange={handleImport} className="hidden" />
                 </div>
@@ -2503,10 +2476,10 @@ const [currentPage, setCurrentPage] = useState(1);
               <div className="md:col-span-2 bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#2563eb] flex flex-col overflow-hidden relative">
                 <div className="bg-slate-100 border-b-4 border-slate-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
                   <div className="flex w-full xl:w-auto flex-wrap gap-1.5 sm:gap-2">
-                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>50字極速掃描</button>
-                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>綜合自由特訓</button>
-                    <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題深度特訓</button>
-                    <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>單字總覽清單</button>
+                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>極速掃描</button>
+                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>自由特訓</button>
+                    <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題特訓</button>
+                    <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>總覽</button>
                   </div>
                   
                   {mode !== 'list' && mode !== 'scan' && (
@@ -2635,24 +2608,11 @@ const [currentPage, setCurrentPage] = useState(1);
 
 
                           <div 
-                            ref={cardRef}
-                            className={`perspective-1000 w-full cursor-pointer touch-none ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0 transition-all duration-300 ease-in-out' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0 transition-all duration-300 ease-in-out' : ''}`} 
-                            style={{ touchAction: 'none' }} // 絕對封印 iOS/Android 上下滑動
-                            onClick={() => !swipeAnim && Math.abs(currentOffset.current) < 10 && setIsFlipped(!isFlipped)}
-                            onTouchStart={onTouchStart}
-                            onTouchMove={onTouchMove}
-                            onTouchEnd={onTouchEnd}
+                            className={`perspective-1000 w-full cursor-pointer transition-all duration-300 ease-in-out ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
+                            onClick={() => !swipeAnim && setIsFlipped(!isFlipped)}
                           >
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-                               {/* === 即時物理反饋：動態顏色遮罩 === */}
-                               <div 
-                                 ref={overlayRef}
-                                 className="absolute inset-0 z-50 rounded-2xl pointer-events-none" 
-                                 style={{ opacity: 0 }}
-                               ></div>
-                               
-                               {/* 以下保留原本的卡片正反面內容 */}
-                               <div className="absolute inset-0 backface-hidden bg-white border-4 border-slate-900 rounded-2xl shadow-[8px_8px_0_0_#2563eb] flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform">
+                             <div className={`absolute inset-0 backface-hidden rounded-2xl flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform border-4 ${swipeAnim === 'left' ? 'bg-red-200 border-red-600 shadow-[80px_0_100px_-10px_rgba(220,38,38,1)]' : swipeAnim === 'right' ? 'bg-green-200 border-green-600 shadow-[-80px_0_100px_-10px_rgba(22,163,74,1)]' : 'bg-white border-slate-900 shadow-[8px_8px_0_0_#2563eb]'}`}>
                                 <div className="absolute top-4 right-4 p-2 text-slate-400 hover:text-blue-600 transition-colors" onClick={(e) => { e.stopPropagation(); playAudio(currentWord.en); }}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                                 </div>
@@ -2672,12 +2632,38 @@ const [currentPage, setCurrentPage] = useState(1);
                             </div>
                           </div>
                           {isFlipped && (
-                            <div className="flex gap-4 w-full mt-8 animate-fade-in">
-                              <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">模糊 / 忘記</button>
-                              <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">清楚掌握</button>
-                            </div>
-                          )}
-                        </div>
+    <div className="flex gap-4 w-full mt-8 animate-fade-in">
+      <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">模糊 / 忘記</button>
+      <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">清楚掌握</button>
+    </div>
+  )}
+
+  {/* 以下為新增的手機版專屬常駐按鈕列：只有在「未翻牌 (!isFlipped)」時才顯示 */}
+  {!isFlipped && (
+      <div className="flex md:hidden w-full gap-2 mt-6 animate-fade-in">
+          <button 
+              onClick={(e) => { e.stopPropagation(); window._handleFlashcardUndo(); }} 
+              className="flex-[0.5] bg-slate-200 hover:bg-slate-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-xl"
+              title="返回上一張"
+          >
+              回溯
+          </button>
+          <button 
+              onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} 
+              className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
+          >
+              <span className="text-lg"></span> 我不會
+          </button>
+          <button 
+              onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} 
+              className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
+          >
+              <span className="text-lg"></span> 我會
+          </button>
+      </div>
+  )}
+
+</div>
                       ) : (
                         <React.Fragment>
 
@@ -2849,9 +2835,9 @@ const [currentPage, setCurrentPage] = useState(1);
                         <div className="text-center text-slate-900 py-16 animate-fade-in flex flex-col items-center justify-center w-full">
                         {mode === 'scan' ? (
                           <React.Fragment>
-                            <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">⚡️</span>
+                            <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">📡</span>
                             <h3 className="text-3xl md:text-4xl font-black mb-4 uppercase italic tracking-tight">
-                                {sessionQueue.length > 0 ? 'MISSION ACCOMPLISHED' : '50 字極速掃描'}
+                                {sessionQueue.length > 0 ? 'MISSION ACCOMPLISHED' : '極速掃描'}
                             </h3>
                             <p className="font-bold text-slate-600 bg-yellow-300 inline-block px-4 py-1.5 rounded border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] mb-8 text-sm md:text-base">
                                 {sessionQueue.length > 0 ? `掃描完成！已將生疏單字收錄至錯題本。` : `隨機抽取 50 個尚未熟練的單字進行快速前測診斷！`}
@@ -2863,7 +2849,7 @@ const [currentPage, setCurrentPage] = useState(1);
                                     </button>
                                 )}
                                 <button onClick={startSession} className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase tracking-wider text-lg">
-                                    {sessionQueue.length > 0 ? '再戰下一組' : 'START 啟動掃描'}
+                                    {sessionQueue.length > 0 ? '再戰下一組' : 'START '}
                                 </button>
                             </div>
                           </React.Fragment>
@@ -2957,7 +2943,7 @@ const [currentPage, setCurrentPage] = useState(1);
                 <div className="p-5 border-t-4 border-slate-900 bg-slate-100 flex flex-col gap-3 shrink-0">
                   {rightTab === 'current' ? (
                     <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-                      CLEAR ERRORS (清空)
+                      CLEAR ERRORS 
                     </button>
                   ) : (
                     <React.Fragment>
@@ -2968,10 +2954,10 @@ const [currentPage, setCurrentPage] = useState(1);
                       ) : (
                         <React.Fragment>
                           <button onClick={startBattleMode} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-white bg-purple-600 hover:bg-purple-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase animate-pulse">
-                            ⚔️ ENTER BATTLE MODE
+                             ENTER BATTLE MODE
                           </button>
                           <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-                            RECALL TOP 10 (召回前十名)
+                            RECALL TOP 10 
                           </button>
                           <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
                             RESET HISTORY
