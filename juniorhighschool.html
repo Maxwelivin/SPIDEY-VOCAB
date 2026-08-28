@@ -1650,6 +1650,8 @@
       const [isDictationRevealed, setIsDictationRevealed] = useState(false);
 
       const [isFlipped, setIsFlipped] = useState(false);
+const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
+
 // === 60FPS 觸控滑動引擎 (Direct DOM Engine) ===
       const touchStartX = useRef(null);
       const currentOffset = useRef(0);
