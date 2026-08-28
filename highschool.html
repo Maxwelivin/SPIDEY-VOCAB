@@ -15,8 +15,10 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const VOCABULARY = [
+   const VOCABULARY = [
       // === 字母 A ===
+
+
 { en: "a/an", zh: "一(個)", pos: "art.", b: "L1", ex: "I saw your dad and your mom at the zoo.", ex_zh: "我在動物園看到一隻狗和你媽。" },
       { en: "able", zh: "能,可以", pos: "adj.", b: "L1", ex: "she is able to speak three languages fluently.", ex_zh: "她能流利地說三種語言。" },
       { en: "about", zh: "關於", pos: "prep.", b: "L1", ex: "The book is about the history of Taiwan.", ex_zh: "這本書是關於台灣的歷史。" },
@@ -6428,18 +6430,12 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
   { en: "yearn", zh: "思念/渴望", pos: "vi.", b: "L6", ex: "After studying abroad for a year, she began to yearn for her mother's home-cooked meals.", ex_zh: "在國外留學一年後，她開始渴望吃媽媽親手做的家常菜。" },
   { en: "zeal", zh: "熱心/熱誠", pos: "n.", b: "L6", ex: "The young volunteers showed great zeal and enthusiasm in helping the elderly.", ex_zh: "年輕的志工在幫助老年人時展現了極大的熱忱（熱心）與熱情。" },
 
-      
-    
-
-
-
-
 
 
 
     ];
 
-    const BOOK_LABELS = {
+     const BOOK_LABELS = {
       "L1": "高中 Level 1 (精選百字)",
       "L2": "高中 Level 2 (進階字彙)",
       "L3": "高中 Level 3 (核心字彙)",
@@ -6489,6 +6485,25 @@ const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' �
       const [battleQueue, setBattleQueue] = useState([]);
       const [battleIndex, setBattleIndex] = useState(0);
       const [battleStep, setBattleStep] = useState(1);
+// === 50題回合制狀態 ===
+      const [sessionQueue, setSessionQueue] = useState([]);
+      const [sessionIndex, setSessionIndex] = useState(0);
+      const [isSessionActive, setIsSessionActive] = useState(false);
+
+      const sessionQueueRef = useRef(sessionQueue);
+      const sessionIndexRef = useRef(sessionIndex);
+      const isSessionActiveRef = useRef(isSessionActive);
+
+      useEffect(() => { sessionQueueRef.current = sessionQueue; }, [sessionQueue]);
+      useEffect(() => { sessionIndexRef.current = sessionIndex; }, [sessionIndex]);
+      useEffect(() => { isSessionActiveRef.current = isSessionActive; }, [isSessionActive]);
+
+
+
+
+
+
+
 const [currentPage, setCurrentPage] = useState(1);
       useEffect(() => { setCurrentPage(1); }, [selectedBook]);
 
@@ -6643,6 +6658,36 @@ const [currentPage, setCurrentPage] = useState(1);
         return newArray;
       };
 
+// === 啟動 50 題掃描回合 ===
+      const startSession = () => {
+        const fullList = getActiveVocab();
+        const unpracticed = fullList.filter(w => !practicedWordsRef.current.includes(w.en));
+        const pool = shuffleArray(unpracticed).slice(0, 50); 
+        if (pool.length === 0) {
+            alert("太棒了！這個 Level 的單字你已經全部掃描完畢！可以重置進度再挑戰一次。");
+            return;
+        }
+        setSessionQueue(pool);
+        setSessionIndex(0);
+        setIsSessionActive(true);
+        setMode('scan'); // 獨立為 scan 模式
+        setDirection('flashcard'); // 強制鎖定題型為閃卡
+        setCurrentWord(pool[0]); 
+        setAskEnglish(true);
+        setFeedback(null);
+        setAttemptCount(0);
+        setIsDictationRevealed(false);
+        setIsFlipped(false);
+        setSelectedOption(null);
+      };
+
+
+
+
+
+
+
+
       const getBattleDirection = (step) => {
         switch(step) {
           case 1: return 'mcq-en-zh'; 
@@ -6672,28 +6717,23 @@ const [currentPage, setCurrentPage] = useState(1);
           nextDir = getBattleDirection(step);
           setDirection(nextDir); 
         } else {
-          const activeList = currentMode === 'errors' ? errorListRef.current : fullList;
-          if (activeList.length === 0) {
-            setCurrentWord(null);
-            return;
-          }
-
-          let randomIndex;
-          if (currentMode === 'all') {
-            const unpracticedIndices = activeList
-              .map((w, index) => ({ w, index }))
-              .filter(({ w }) => !practicedWordsRef.current.includes(w.en))
-              .map(({ index }) => index);
-              
-            if (unpracticedIndices.length > 0) {
-              randomIndex = unpracticedIndices[Math.floor(Math.random() * unpracticedIndices.length)];
-            } else {
-              randomIndex = Math.floor(Math.random() * activeList.length);
-            }
-          } else {
-            randomIndex = Math.floor(Math.random() * activeList.length);
-          }
-          nextWord = activeList[randomIndex];
+      if (currentMode === 'scan') {
+        // 直接讀取最新狀態，防堵下拉選單切換時的空陣列誤判
+        if (!isSessionActiveRef.current || sessionQueueRef.current.length === 0 || sessionIndexRef.current >= sessionQueueRef.current.length) {
+          setCurrentWord(null);
+          setIsSessionActive(false);
+          return;
+        }
+        nextWord = sessionQueueRef.current[sessionIndexRef.current];
+      } else {
+        const activeList = currentMode === 'errors' ? errorListRef.current : fullList;
+        if (activeList.length === 0) {
+          setCurrentWord(null);
+          return;
+        }
+        const randomIndex = Math.floor(Math.random() * activeList.length);
+        nextWord = activeList[randomIndex];
+      }
         }
         
         setCurrentWord(nextWord);
@@ -6861,18 +6901,47 @@ const [currentPage, setCurrentPage] = useState(1);
       window._playAudio = playAudio;
       window._handleHintClick = handleHintClick;
       // === 閃卡專屬捷徑控制 ===
-      // === 閃卡專屬捷徑控制 (具備滑動回饋與防連按鎖定) ===
+     // === 閃卡專屬捷徑控制 (強固防呆版) ===
       window._handleFlashcardUnclear = (word) => {
-        if (stateRef.current.swipeAnim) return; // 鎖定狀態，防止連按
+        if (stateRef.current.swipeAnim) return; 
         setSwipeAnim('left');
-        setTimeout(() => { recordError(word); generateQuestion(); setSwipeAnim(null); }, 300);
+        setTimeout(() => { 
+          recordError(word); 
+          if (mode === 'scan') {
+             const nextIdx = sessionIndex + 1;
+             setSessionIndex(nextIdx);
+             if (nextIdx >= sessionQueue.length) {
+                 setCurrentWord(null);
+                 setIsSessionActive(false);
+             } else {
+                 setCurrentWord(sessionQueue[nextIdx]);
+                 setIsFlipped(false);
+             }
+          } else {
+             generateQuestion(); 
+          }
+          setSwipeAnim(null); 
+        }, 300);
       };
+      
       window._handleFlashcardGotIt = (word) => {
-        if (stateRef.current.swipeAnim) return; // 鎖定狀態，防止連按
+        if (stateRef.current.swipeAnim) return; 
         setSwipeAnim('right');
         setTimeout(() => { 
           setPracticedWords(prev => prev.includes(word.en) ? prev : [...prev, word.en]); 
-          generateQuestion(); 
+          if (mode === 'scan') {
+             const nextIdx = sessionIndex + 1;
+             setSessionIndex(nextIdx);
+             if (nextIdx >= sessionQueue.length) {
+                 setCurrentWord(null);
+                 setIsSessionActive(false);
+             } else {
+                 setCurrentWord(sessionQueue[nextIdx]);
+                 setIsFlipped(false);
+             }
+          } else {
+             generateQuestion(); 
+          }
           setSwipeAnim(null); 
         }, 300);
       };
@@ -7119,7 +7188,7 @@ const [currentPage, setCurrentPage] = useState(1);
   disabled={mode === 'battle'}
   className="bg-blue-100 border-4 border-slate-900 text-blue-900 text-sm font-black rounded-lg focus:ring-0 p-2 cursor-pointer outline-none transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] w-full sm:w-auto uppercase disabled:opacity-50 disabled:hover:translate-y-0"
 >
- <option value="L1">高中 Level 1 </option>
+  <option value="L1">高中 Level 1 </option>
   <option value="L2">高中 Level 2 </option> 
   <option value="L3">高中 Level 3 </option>
   <option value="L4">高中 Level 4 </option>
@@ -7163,13 +7232,14 @@ const [currentPage, setCurrentPage] = useState(1);
             <main className="grid md:grid-cols-3 gap-6 flex-1 items-start">
               <div className="md:col-span-2 bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#2563eb] flex flex-col overflow-hidden relative">
                 <div className="bg-slate-100 border-b-4 border-slate-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
-                  <div className="flex w-full sm:w-auto gap-2">
-                    <button onClick={() => setMode('all')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-black transition-transform hover:-translate-y-1 border-4 border-slate-900 ${mode === 'all' ? 'bg-red-600 text-white shadow-[4px_4px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[2px_2px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0`}>綜合題庫</button>
-                    <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-black transition-transform hover:-translate-y-1 border-4 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[4px_4px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[2px_2px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0`}>錯題特訓</button>
-                    <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-black transition-transform hover:-translate-y-1 border-4 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[4px_4px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[2px_2px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0`}>總覽</button>
+                  <div className="flex w-full xl:w-auto flex-wrap gap-1.5 sm:gap-2">
+                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>50字極速掃描</button>
+                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>綜合自由特訓</button>
+                    <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題深度特訓</button>
+                    <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>單字總覽清單</button>
                   </div>
                   
-                  {mode !== 'list' && (
+                  {mode !== 'list' && mode !== 'scan' && (
                     <select 
                       value={direction} 
                       onChange={(e) => {
@@ -7231,7 +7301,7 @@ const [currentPage, setCurrentPage] = useState(1);
               >
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
               </button>
-              {/* 原本在這裡的 EX 按鈕已經移除了 */}
+              {/* 原本在這裡的 EX 按鈕已經移深了 */}
             </div>
             <div className="mt-2 sm:mt-0 sm:text-right flex items-center gap-2 sm:justify-end ml-9 sm:ml-0">
                <span className="text-[10px] bg-yellow-300 text-slate-900 border-2 border-slate-900 px-2 py-0.5 rounded font-black uppercase shadow-[2px_2px_0_0_#1e293b]">{word.pos}</span>
@@ -7283,6 +7353,17 @@ const [currentPage, setCurrentPage] = useState(1);
                     {currentWord ? (
                       direction === 'flashcard' ? (
                         <div className="w-full max-w-md mx-auto flex flex-col items-center shrink-0">
+{mode === 'scan' && (
+                             <div className="mb-4 bg-slate-900 text-white font-black px-4 py-1 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#eab308] text-sm uppercase tracking-widest">
+                                掃描進度：{sessionIndex + 1} / {sessionQueue.length}
+                             </div>
+                          )}
+
+
+
+
+
+
                           <div 
                             className={`perspective-1000 w-full cursor-pointer transition-all duration-300 ease-in-out ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
                             onClick={() => !swipeAnim && setIsFlipped(!isFlipped)}
@@ -7482,24 +7563,46 @@ const [currentPage, setCurrentPage] = useState(1);
                       </React.Fragment>
                       )
                     ) : (
-                        <div className="text-center text-slate-900 py-16 animate-fade-in">
-                        <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">CLEAR!</span>
-                        <h3 className="text-3xl font-black mb-4 uppercase italic tracking-tight">Mission Accomplished</h3>
-                        <p className="font-bold text-slate-600 bg-yellow-300 inline-block px-4 py-1 rounded border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b]">
-                          {mode === 'battle' ? '所有頑固敵人都已經被消滅！太棒了！' : '任務完成，請點選上方按鈕切換題庫或檢視總覽！'}
-                        </p>
-                        {mode === 'battle' && (
-                           <button onClick={() => setMode('all')} className="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase">
-                              返回綜合題庫
-                           </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                        <div className="text-center text-slate-900 py-16 animate-fade-in flex flex-col items-center justify-center w-full">
+                        {mode === 'scan' ? (
+                          <React.Fragment>
+                            <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">⚡️</span>
+                            <h3 className="text-3xl md:text-4xl font-black mb-4 uppercase italic tracking-tight">
+                                {sessionQueue.length > 0 ? 'MISSION ACCOMPLISHED' : '50 字極速掃描'}
+                            </h3>
+                            <p className="font-bold text-slate-600 bg-yellow-300 inline-block px-4 py-1.5 rounded border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] mb-8 text-sm md:text-base">
+                                {sessionQueue.length > 0 ? `掃描完成！已將生疏單字收錄至錯題本。` : `隨機抽取 50 個尚未熟練的單字進行快速前測診斷！`}
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                                {sessionQueue.length > 0 && errorList.length > 0 && (
+                                    <button onClick={() => setMode('errors')} className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase tracking-wider text-lg">
+                                        進入錯題特訓
+                                    </button>
+                                )}
+                                <button onClick={startSession} className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase tracking-wider text-lg">
+                                    {sessionQueue.length > 0 ? '再戰下一組' : 'START 啟動掃描'}
+                                </button>
+                            </div>
+                          </React.Fragment>
+                        ) : (
+                          <React.Fragment>
+                            <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">CLEAR!</span>
+                            <h3 className="text-3xl font-black mb-4 uppercase italic tracking-tight">Mission Accomplished</h3>
+                            <p className="font-bold text-slate-600 bg-yellow-300 inline-block px-4 py-1 rounded border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b]">
+                              {mode === 'battle' ? '所有頑固敵人都已經被消滅！太棒了！' : '任務完成，請點選上方按鈕切換題庫或檢視總覽！'}
+                            </p>
+                            {mode === 'battle' && (
+                               <button onClick={() => { setMode('all'); setIsSessionActive(false); }} className="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase">
+                                  返回極速掃描
+                               </button>
+                            )}
+                  </React.Fragment>
                 )}
               </div>
-
-              {}
+            )}
+          </div>
+        )}
+      </div>
               <div className="bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] flex flex-col h-[500px] md:h-[calc(100vh-10rem)] md:max-h-[800px] md:sticky md:top-8 overflow-hidden shrink-0 relative z-10">
                 <div className="flex border-b-4 border-slate-900 shrink-0">
                   <button onClick={() => setRightTab('current')} className={`flex-1 py-4 font-black text-sm transition-colors border-r-4 border-slate-900 uppercase ${rightTab === 'current' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-red-100'}`}>
