@@ -1650,7 +1650,6 @@
       const [isDictationRevealed, setIsDictationRevealed] = useState(false);
 
       const [isFlipped, setIsFlipped] = useState(false);
-const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
 // === 60FPS 觸控滑動引擎 (Direct DOM Engine) ===
       const touchStartX = useRef(null);
       const currentOffset = useRef(0);
@@ -1658,34 +1657,50 @@ const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' �
       const overlayRef = useRef(null);
       const SWIPE_THRESHOLD = 80;
 
-      const onTouchStart = (e) => {
-        touchStartX.current = e.targetTouches[0].clientX;
-        currentOffset.current = 0;
+      // 1. 強制封印行動端瀏覽器預設滾動 (徹底解決上下飄移)
+      useEffect(() => {
+        const card = cardRef.current;
+        if (card) {
+          const preventScroll = (e) => e.preventDefault();
+          // { passive: false } 是奪取 iOS 觸控控制權的唯一底層解法
+          card.addEventListener('touchmove', preventScroll, { passive: false });
+          return () => card.removeEventListener('touchmove', preventScroll);
+        }
+      }, [direction, currentWord]);
+
+      // 2. 切換下一題時，瞬間重置 DOM 物理狀態 (徹底解決飛出時的卡頓與閃爍)
+      useEffect(() => {
         if (cardRef.current) {
-          cardRef.current.style.transition = 'none'; // 手指按下瞬間解除動畫，達成 0 延遲跟手
+          cardRef.current.style.transition = 'none';
+          cardRef.current.style.transform = '';
         }
         if (overlayRef.current) {
           overlayRef.current.style.transition = 'none';
+          overlayRef.current.style.opacity = '0';
         }
+      }, [currentWord]);
+
+      const onTouchStart = (e) => {
+        touchStartX.current = e.targetTouches[0].clientX;
+        currentOffset.current = 0;
+        if (cardRef.current) cardRef.current.style.transition = 'none';
+        if (overlayRef.current) overlayRef.current.style.transition = 'none';
       };
 
       const onTouchMove = (e) => {
         if (!touchStartX.current || stateRef.current.swipeAnim) return;
-        
         const diff = e.targetTouches[0].clientX - touchStartX.current;
         currentOffset.current = diff;
 
-        // 繞過 React，直接注入 GPU 渲染層，絕對絲滑
         if (cardRef.current) {
           cardRef.current.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
         }
-        
         if (overlayRef.current) {
           if (diff > 0) {
-             overlayRef.current.style.backgroundColor = '#4ade80'; // 向右變綠
+             overlayRef.current.style.backgroundColor = '#4ade80';
              overlayRef.current.style.opacity = Math.min(diff / 150, 0.6);
-          } else if (diff < 0) {
-             overlayRef.current.style.backgroundColor = '#ef4444'; // 向左變紅
+          } else {
+             overlayRef.current.style.backgroundColor = '#ef4444';
              overlayRef.current.style.opacity = Math.min(Math.abs(diff) / 150, 0.6);
           }
         }
@@ -1696,23 +1711,27 @@ const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' �
         const finalOffset = currentOffset.current;
         
         if (finalOffset > SWIPE_THRESHOLD) {
-          // 滑動成功，清除行內樣式，將控制權交還給 Tailwind 進行飛出動畫
-          if (cardRef.current) cardRef.current.style.transform = ''; 
-          if (overlayRef.current) overlayRef.current.style.opacity = 0;
+          // 動量飛出：不交還控制權，直接沿用行內樣式把卡片「甩」出螢幕
+          if (cardRef.current) {
+            cardRef.current.style.transition = 'transform 0.3s ease-out';
+            cardRef.current.style.transform = `translateX(${window.innerWidth}px) rotate(15deg)`;
+          }
           window._handleFlashcardGotIt(stateRef.current.currentWord);
         } else if (finalOffset < -SWIPE_THRESHOLD) {
-          if (cardRef.current) cardRef.current.style.transform = ''; 
-          if (overlayRef.current) overlayRef.current.style.opacity = 0;
+          if (cardRef.current) {
+            cardRef.current.style.transition = 'transform 0.3s ease-out';
+            cardRef.current.style.transform = `translateX(-${window.innerWidth}px) rotate(-15deg)`;
+          }
           window._handleFlashcardUnclear(stateRef.current.currentWord);
         } else {
-          // 未達物理閾值，啟動彈回動畫
+          // 未達物理閾值，彈回原位
           if (cardRef.current) {
             cardRef.current.style.transition = 'transform 0.3s ease-out';
             cardRef.current.style.transform = `translateX(0px) rotate(0deg)`;
           }
           if (overlayRef.current) {
             overlayRef.current.style.transition = 'opacity 0.3s ease-out';
-            overlayRef.current.style.opacity = 0;
+            overlayRef.current.style.opacity = '0';
           }
         }
         
