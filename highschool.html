@@ -15,10 +15,9 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    
 const VOCABULARY = [
-
-      { en: "a/an", zh: "一(個)", pos: "art.", b: "L1", ex: "I saw your dad and your mom at the zoo.", ex_zh: "我在動物園看到一隻狗和你媽。" },
+      
+    { en: "a/an", zh: "一(個)", pos: "art.", b: "L1", ex: "I saw your dad and your mom at the zoo.", ex_zh: "我在動物園看到一隻狗和你媽。" },
       { en: "able", zh: "能,可以", pos: "adj.", b: "L1", ex: "she is able to speak three languages fluently.", ex_zh: "她能流利地說三種語言。" },
       { en: "about", zh: "關於", pos: "prep.", b: "L1", ex: "The book is about the history of Taiwan.", ex_zh: "這本書是關於台灣的歷史。" },
       { en: "above", zh: "在...上面", pos: "prep. adv.", b: "L1", ex: "The bird flew above the clouds.", ex_zh: "那隻鳥飛在雲層上方。" },
@@ -6434,6 +6433,7 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
 
 
 
+
     ];
 
     const BOOK_LABELS = {
@@ -6868,36 +6868,41 @@ setHasFailedCurrent(false); // 新增：換題時重置失誤標記
       };
 
       const handleOptionClick = (option) => {
-        if (isTerminalState) return; 
-        setSelectedOption(option);
+  if (isTerminalState) return; 
+  
+  // 新增這行：強迫釋放被殘留綁架的鍵盤焦點
+  if (document.activeElement) document.activeElement.blur();
+
+  setSelectedOption(option);
         if (!practicedWords.includes(currentWord.en)) setPracticedWords(prev => [...prev, currentWord.en]);
 
         if (option.en === currentWord.en) {
-          if (modeRef.current === 'battle') {
-            const nextStep = battleStepRef.current + 1;
-            if (nextStep > 4) {
-                setBattleStep(1);
-                setBattleIndex(prev => prev + 1);
-                setFeedback({ status: 'correct', msg: '🎉 擊破！換下一個敵人！' });
-            } else {
-                setBattleStep(nextStep);
-                setFeedback({ status: 'correct', msg: `答對了！進入階段 ${nextStep}/4 ...` });
-            }
-          } else if (modeRef.current === 'errors') {
-            const currentStreak = (currentWord.streak || 0) + 1;
-            if (currentStreak >= 3) {
-              setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
-              setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
-            } else {
-              setFeedback({ status: 'correct', msg: `答對了！(連對 ${currentStreak}/3 次)` });
-              setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
-            }
-          } else {
-            setFeedback({ status: 'correct', msg: '答對了！' });
-          }
-          if (direction === 'mcq-zh-en' || (modeRef.current === 'battle' && battleStepRef.current === 2)) playAudio(currentWord.en); 
-          setTimeout(() => generateQuestion(), 800);
-        } else {
+  if (modeRef.current === 'battle') {
+    const nextStep = battleStepRef.current + 1;
+    if (nextStep > 4) {
+        setBattleStep(1);
+        setBattleIndex(prev => prev + 1);
+        setFeedback({ status: 'correct', msg: '🎉 擊破！換下一個敵人！' });
+    } else {
+        setBattleStep(nextStep);
+        setFeedback({ status: 'correct', msg: `答對了！進入階段 ${nextStep}/4 ...` });
+    }
+  } else if (modeRef.current === 'errors') {
+    const currentStreak = (currentWord.streak || 0) + 1;
+    if (currentStreak >= 3) {
+      setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
+      setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
+    } else {
+      setFeedback({ status: 'correct', msg: `答對了！(連對 ${currentStreak}/3 次)` });
+      setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
+    }
+  } else {
+    setFeedback({ status: 'correct', msg: '答對了！' });
+  }
+  
+  if (direction === 'mcq-zh-en' || (modeRef.current === 'battle' && battleStepRef.current === 2)) playAudio(currentWord.en); 
+  // 【移除這裡的 setTimeout，讓畫面停留在成功狀態，等待使用者按 NEXT】
+} else {
           setFeedback({ status: 'wrong', msg: `錯誤！正確答案是：「 ${askEnglish ? currentWord.en : currentWord.zh} 」` });
           recordError(currentWord);
           if (direction === 'mcq-zh-en' || (modeRef.current === 'battle' && battleStepRef.current === 2)) playAudio(currentWord.en); 
@@ -6967,8 +6972,22 @@ window._handleFlashcardGotIt = (word) => {
   if (stateRef.current.swipeAnim) return; 
   setUndoStack(prev => [...prev, captureSnapshot()].slice(-20));
   setSwipeAnim('right');
+  
   setTimeout(() => { 
     setPracticedWords(prev => prev.includes(word.en) ? prev : [...prev, word.en]); 
+    
+    // 【新增】：錯題本的連對累加與消滅機制
+    if (modeRef.current === 'errors') {
+      const currentStreak = (word.streak || 0) + 1;
+      if (currentStreak >= 3) {
+        // 連對 3 次，移出錯題本
+        setErrorList(prev => prev.filter(w => w.en !== word.en));
+      } else {
+        // 未滿 3 次，更新連對次數
+        setErrorList(prev => prev.map(w => w.en === word.en ? { ...w, streak: currentStreak } : w));
+      }
+    }
+
     if (mode === 'scan') {
        const nextIdx = sessionIndex + 1;
        setSessionIndex(nextIdx);
@@ -7022,16 +7041,24 @@ if (direction === 'flashcard') {
 }
 
           if ((direction === 'mcq-zh-en' || direction === 'mcq-en-zh') && !isTerminalState && !isInputFocused) {
-            if (e.key === '1' && multipleChoiceOptions.length > 0) window._handleOptionClick(multipleChoiceOptions[0]);
-            if (e.key === '2' && multipleChoiceOptions.length > 1) window._handleOptionClick(multipleChoiceOptions[1]);
-            if (e.key === '3' && multipleChoiceOptions.length > 2) window._handleOptionClick(multipleChoiceOptions[2]);
-            if (e.key === '4' && multipleChoiceOptions.length > 3) window._handleOptionClick(multipleChoiceOptions[3]);
-            if (e.key === '5') {
-              window._handleUnfamiliar();
-              if (direction === 'mcq-zh-en' && currentWord) window._playAudio(currentWord.en);
-            }
-            return;
-          }
+        if (e.key === '1' && multipleChoiceOptions.length > 0) window._handleOptionClick(multipleChoiceOptions[0]);
+        if (e.key === '2' && multipleChoiceOptions.length > 1) window._handleOptionClick(multipleChoiceOptions[1]);
+        if (e.key === '3' && multipleChoiceOptions.length > 2) window._handleOptionClick(multipleChoiceOptions[2]);
+        if (e.key === '4' && multipleChoiceOptions.length > 3) window._handleOptionClick(multipleChoiceOptions[3]);
+        if (e.key === '5') {
+          window._handleUnfamiliar();
+          if (direction === 'mcq-zh-en' && currentWord) window._playAudio(currentWord.en);
+        }
+        
+        // --- 插入此段：向上鍵發音邏輯 ---
+        if (e.key === 'ArrowUp') {
+          e.preventDefault(); 
+          if (currentWord) window._playAudio(currentWord.en);
+        }
+        // -----------------------------
+        
+        return;
+      }
 
           if (direction !== 'mcq-zh-en' && direction !== 'mcq-en-zh' && !isTerminalState) {
             if (e.key === 'ArrowUp') {
@@ -7117,41 +7144,37 @@ if (direction === 'flashcard') {
 }
 
         if (isCorrect) {
-// 新增：如果是在訂正狀態下答對，直接過關不給獎勵
+  // 處理訂正狀態的過關
   if (hasFailedCurrent) {
     setFeedback({ status: 'correct', msg: '✅ 訂正完成！' });
-    setTimeout(() => generateQuestion(), 600);
+    // 【移除 setTimeout】
     return;
   }
 
-
-
-
-
-          if (modeRef.current === 'battle') {
-            const nextStep = battleStepRef.current + 1;
-            if (nextStep > 4) {
-                setBattleStep(1);
-                setBattleIndex(prev => prev + 1);
-                setFeedback({ status: 'correct', msg: '🎉 擊破！換下一個敵人！' });
-            } else {
-                setBattleStep(nextStep);
-                setFeedback({ status: 'correct', msg: `答對了！進入階段 ${nextStep}/4 ...` });
-            }
-          } else if (modeRef.current === 'errors') {
-            const currentStreak = (currentWord.streak || 0) + 1;
-            if (currentStreak >= 3) {
-              setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
-              setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
-            } else {
-              setFeedback({ status: 'correct', msg: `答對了！(連對 ${currentStreak}/3 次)` });
-              setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
-            }
-          } else {
-            setFeedback({ status: 'correct', msg: '答對了！' });
-          }
-          setTimeout(() => generateQuestion(), 800);
-        } else {
+  if (modeRef.current === 'battle') {
+    const nextStep = battleStepRef.current + 1;
+    if (nextStep > 4) {
+        setBattleStep(1);
+        setBattleIndex(prev => prev + 1);
+        setFeedback({ status: 'correct', msg: '🎉 擊破！換下一個敵人！' });
+    } else {
+        setBattleStep(nextStep);
+        setFeedback({ status: 'correct', msg: `答對了！進入階段 ${nextStep}/4 ...` });
+    }
+  } else if (modeRef.current === 'errors') {
+    const currentStreak = (currentWord.streak || 0) + 1;
+    if (currentStreak >= 3) {
+      setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
+      setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
+    } else {
+      setFeedback({ status: 'correct', msg: `答對了！(連對 ${currentStreak}/3 次)` });
+      setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
+    }
+  } else {
+    setFeedback({ status: 'correct', msg: '答對了！' });
+  }
+  // 【移除這裡的 setTimeout，讓畫面停留在成功狀態，等待使用者按 NEXT 或 Enter】
+} else {
           const answersToCompare = askEnglish ? possibleAnswers : strippedAnswers;
           const hint = getHintMessage(normalizedInput, answersToCompare);
           if (hint && attemptCount === 0) {
@@ -7227,6 +7250,27 @@ if (direction === 'flashcard') {
         alert("已成功將歷史最常錯的單字召回至當前錯題本！準備開始特訓。");
       };
 
+       const recallAllHistoricalErrors = () => {
+  const allWords = sortedHistory.map(item => item.word);
+  if (allWords.length === 0) return;
+  setErrorList(prev => {
+    const newList = [...prev];
+    allWords.forEach(w => { if (!newList.some(x => x.en === w.en)) newList.push({ ...w, streak: 0 }); });
+    return newList;
+  });
+  setMode('errors');
+  setRightTab('current');
+  alert(`已成功將歷史累積的 ${allWords.length} 個頑固單字全數召回至錯題本！準備進行全面特訓。`);
+};
+
+
+
+
+
+
+
+
+
       const startBattleMode = () => {
         const words = sortedHistory.map(item => item.word);
         if (words.length === 0) return;
@@ -7261,7 +7305,7 @@ if (direction === 'flashcard') {
 </select>
                   </div>
                   <p className="text-slate-600 mt-2 text-sm font-bold uppercase tracking-wider">
-                    各個擊破！
+                    STEP BY STEP
                   </p>
                 </div>
                 <div className="flex gap-3 w-full lg:w-auto">
@@ -7297,8 +7341,8 @@ if (direction === 'flashcard') {
               <div className="md:col-span-2 bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#2563eb] flex flex-col overflow-hidden relative">
                 <div className="bg-slate-100 border-b-4 border-slate-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
                   <div className="flex w-full xl:w-auto flex-wrap gap-1.5 sm:gap-2">
-                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>極速掃描</button>
-                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>自由特訓</button>
+                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>快速掃描</button>
+                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>自由訓練</button>
                     <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題特訓</button>
                     <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>總覽</button>
                   </div>
@@ -7598,10 +7642,11 @@ if (direction === 'flashcard') {
                               )}
                             </div>
                             {isTerminalState && (
-                              <button onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-xl mt-1 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none uppercase tracking-widest flex items-center justify-center gap-2">
-                                NEXT 
-                              </button>
-                            )}
+  // 加上 autoFocus 屬性
+  <button autoFocus onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-xl mt-1 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex items-center justify-center gap-2">
+    NEXT 
+  </button>
+)}
                           </div>
                         ) : (
                           <form onSubmit={handleSubmit} className="w-full max-w-md shrink-0">
@@ -7633,10 +7678,11 @@ if (direction === 'flashcard') {
                               )}
                             </div>
                             {isTerminalState ? (
-                               <button type="button" onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[6px_6px_0_0_#1e293b] text-xl mt-4 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none uppercase tracking-widest flex justify-center items-center gap-3">
-                                  NEXT 
-                               </button>
-                            ) : (
+   // 加上 autoFocus 屬性
+   <button type="button" autoFocus onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[6px_6px_0_0_#1e293b] text-xl mt-4 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex justify-center items-center gap-3">
+      NEXT 
+   </button>
+) : (
                                <div className="flex flex-col gap-4 mt-4">
                                   <button type="submit" className="w-full bg-red-600 hover:bg-red-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[6px_6px_0_0_#1e293b] text-xl transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none uppercase tracking-wider flex justify-center items-center gap-3">
                                      SUBMIT (提交) 
@@ -7658,7 +7704,7 @@ if (direction === 'flashcard') {
                           <React.Fragment>
                             <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">📡</span>
                             <h3 className="text-3xl md:text-4xl font-black mb-4 uppercase italic tracking-tight">
-                                {sessionQueue.length > 0 ? 'MISSION ACCOMPLISHED' : '極速掃描'}
+                                {sessionQueue.length > 0 ? 'MISSION ACCOMPLISHED' : '快速掃描'}
                             </h3>
                             <p className="font-bold text-slate-600 bg-yellow-300 inline-block px-4 py-1.5 rounded border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] mb-8 text-sm md:text-base">
                                 {sessionQueue.length > 0 ? `掃描完成！已將生疏單字收錄至錯題本。` : `隨機抽取 50 個尚未熟練的單字進行快速前測診斷！`}
@@ -7683,7 +7729,7 @@ if (direction === 'flashcard') {
                             </p>
                             {mode === 'battle' && (
                                <button onClick={() => { setMode('all'); setIsSessionActive(false); }} className="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] uppercase">
-                                  返回極速掃描
+                                  返回快速掃描
                                </button>
                             )}
                   </React.Fragment>
@@ -7780,6 +7826,14 @@ if (direction === 'flashcard') {
                           <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
                             RECALL TOP 10 
                           </button>
+
+<button onClick={recallAllHistoricalErrors} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+  RECALL ALL 
+</button>
+
+
+
+
                           <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
                             RESET HISTORY
                           </button>
