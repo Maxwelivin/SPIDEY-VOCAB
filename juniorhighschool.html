@@ -1636,6 +1636,33 @@
         try { return JSON.parse(localStorage.getItem(`vocab_hist_${selectedBook}`)) || {}; } catch(e) { return {}; }
       });
 
+
+
+
+
+
+const [roundRecords, setRoundRecords] = useState(() => {
+        try { return JSON.parse(localStorage.getItem(`vocab_rounds_${selectedBook}`)) || []; } catch(e) { return []; }
+      });
+
+// 1. 新增星號狀態
+      const [starredWords, setStarredWords] = useState(() => {
+        try { return JSON.parse(localStorage.getItem(`vocab_star_${selectedBook}`)) || []; } catch(e) { return []; }
+      });
+
+      // 2. 新增星號切換邏輯
+      const toggleStar = (wordEn, e) => {
+        if (e) e.stopPropagation();
+        setStarredWords(prev => 
+          prev.includes(wordEn) ? prev.filter(w => w !== wordEn) : [...prev, wordEn]
+        );
+      };
+
+window._toggleStar = toggleStar;
+
+const [showOnlyStarred, setShowOnlyStarred] = useState(false);
+
+
       const [mode, setMode] = useState('all');
       const [direction, setDirection] = useState('flashcard'); 
       const [currentWord, setCurrentWord] = useState(null);
@@ -1700,6 +1727,7 @@ const undoStackRef = useRef(undoStack);
       const battleQueueRef = useRef(battleQueue);
       const battleIndexRef = useRef(battleIndex);
       const battleStepRef = useRef(battleStep);
+const starredWordsRef = useRef(starredWords);
 
       useEffect(() => { errorListRef.current = errorList; }, [errorList]);
 useEffect(() => { historicalErrorsRef.current = historicalErrors; }, [historicalErrors]);
@@ -1710,6 +1738,7 @@ useEffect(() => { undoStackRef.current = undoStack; }, [undoStack]);
       useEffect(() => { battleQueueRef.current = battleQueue; }, [battleQueue]);
       useEffect(() => { battleIndexRef.current = battleIndex; }, [battleIndex]);
       useEffect(() => { battleStepRef.current = battleStep; }, [battleStep]);
+useEffect(() => { starredWordsRef.current = starredWords; }, [starredWords]);
 
       // 移除 feedback?.status === 'wrong'，保持輸入框開啟
 const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status === 'correct';
@@ -1719,17 +1748,25 @@ const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status ==
           const loadedErr = JSON.parse(localStorage.getItem(`vocab_err_${selectedBook}`)) || [];
           const loadedPrac = JSON.parse(localStorage.getItem(`vocab_prac_${selectedBook}`)) || [];
           const loadedHist = JSON.parse(localStorage.getItem(`vocab_hist_${selectedBook}`)) || {};
+          const loadedRounds = JSON.parse(localStorage.getItem(`vocab_rounds_${selectedBook}`)) || []; // 新增這行
           setErrorList(loadedErr);
+const loadedStar = JSON.parse(localStorage.getItem(`vocab_star_${selectedBook}`)) || [];
+          setStarredWords(loadedStar);
           setPracticedWords(loadedPrac);
           setHistoricalErrors(loadedHist);
+          setRoundRecords(loadedRounds); // 新增這行
           setMode('all'); 
           setRightTab('current');
         } catch(e) {}
       }, [selectedBook]);
 
+      // 在原有的 useEffect 下方，新增這行確保持久化寫入
+      useEffect(() => { localStorage.setItem(`vocab_rounds_${selectedBook}`, JSON.stringify(roundRecords)); }, [roundRecords, selectedBook]);
+
       useEffect(() => { localStorage.setItem(`vocab_err_${selectedBook}`, JSON.stringify(errorList)); }, [errorList, selectedBook]);
       useEffect(() => { localStorage.setItem(`vocab_prac_${selectedBook}`, JSON.stringify(practicedWords)); }, [practicedWords, selectedBook]);
       useEffect(() => { localStorage.setItem(`vocab_hist_${selectedBook}`, JSON.stringify(historicalErrors)); }, [historicalErrors, selectedBook]);
+useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.stringify(starredWords)); }, [starredWords, selectedBook]);
 
       const recordError = (wordObj) => {
         setErrorList(prev => {
@@ -1845,6 +1882,7 @@ const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status ==
       };
 
 // === 啟動 50 題掃描回合 ===
+      // === 修改原有的 startSession ===
       const startSession = () => {
         const fullList = getActiveVocab();
         const unpracticed = fullList.filter(w => !practicedWordsRef.current.includes(w.en));
@@ -1853,19 +1891,45 @@ const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status ==
             alert("太棒了！這個 Level 的單字你已經全部掃描完畢！可以重置進度再挑戰一次。");
             return;
         }
+        
+        // --- 新增：寫入輪次快照，並限制最多保留 20 輪 ---
+        setRoundRecords(prev => {
+            const newRounds = [...prev, pool];
+            if (newRounds.length > 20) return newRounds.slice(newRounds.length - 20);
+            return newRounds;
+        });
+        // ---------------------------------------------
+
         setSessionQueue(pool);
         setSessionIndex(0);
         setIsSessionActive(true);
-        setMode('scan'); // 獨立為 scan 模式
-        setDirection('flashcard'); // 強制鎖定題型為閃卡
+        setMode('scan'); 
+        setDirection('flashcard'); 
         setCurrentWord(pool[0]); 
         setAskEnglish(true);
         setFeedback(null);
-setAttemptCount(0); 
-setIsDictationRevealed(false);
-setIsFlipped(false);
-setSelectedOption(null);
-setHasFailedCurrent(false); // 新增：換題時重置失誤標記
+        setAttemptCount(0); 
+        setIsDictationRevealed(false);
+        setIsFlipped(false);
+        setSelectedOption(null);
+        setHasFailedCurrent(false); 
+      };
+
+      // === 新增：召回特定輪次的函式 ===
+      const startSpecificRound = (roundPool) => {
+        setSessionQueue(roundPool);
+        setSessionIndex(0);
+        setIsSessionActive(true);
+        setMode('scan');
+        setDirection('flashcard');
+        setCurrentWord(roundPool[0]);
+        setAskEnglish(true);
+        setFeedback(null);
+        setAttemptCount(0);
+        setIsDictationRevealed(false);
+        setIsFlipped(false);
+        setSelectedOption(null);
+        setHasFailedCurrent(false);
       };
 
 
@@ -1913,7 +1977,12 @@ setHasFailedCurrent(false); // 新增：換題時重置失誤標記
         }
         nextWord = sessionQueueRef.current[sessionIndexRef.current];
       } else {
-        const activeList = currentMode === 'errors' ? errorListRef.current : fullList;
+        let activeList = fullList;
+        if (currentMode === 'errors') {
+          activeList = errorListRef.current;
+        } else if (currentMode === 'starred') {
+          activeList = fullList.filter(w => starredWordsRef.current.includes(w.en));
+        }
         if (activeList.length === 0) {
           setCurrentWord(null);
           return;
@@ -2124,7 +2193,8 @@ window._handleFlashcardUndo = () => {
 };
 
 window._handleFlashcardUnclear = (word) => {
-  if (stateRef.current.swipeAnim) return; 
+  if (!word) return; // 🛡️ 防呆網：如果沒有單字就直接退出
+  if (stateRef.current.swipeAnim) return;
   setUndoStack(prev => [...prev, captureSnapshot()].slice(-20)); // 最多保留最近 20 步的快照
   setSwipeAnim('left');
   setTimeout(() => { 
@@ -2147,7 +2217,8 @@ window._handleFlashcardUnclear = (word) => {
 };
 
 window._handleFlashcardGotIt = (word) => {
-  if (stateRef.current.swipeAnim) return; 
+  if (!word) return; // 🛡️ 防呆網：如果沒有單字就直接退出
+  if (stateRef.current.swipeAnim) return;
   setUndoStack(prev => [...prev, captureSnapshot()].slice(-20));
   setSwipeAnim('right');
   
@@ -2195,6 +2266,18 @@ window._handleFlashcardGotIt = (word) => {
           if (document.activeElement.tagName === 'SELECT') return;
           const { direction, isTerminalState, multipleChoiceOptions, currentWord, isFlipped } = stateRef.current;
           const isInputFocused = document.activeElement.tagName === 'INPUT';
+
+// ⬇️ 新增：全域星號快捷鍵 (+ 或 =) ⬇️
+          if (currentWord && (e.key === '=' || e.key === '+')) {
+            e.preventDefault(); // 🛡️ 關鍵防呆：避免在輸入框中打出等號
+            window._toggleStar(currentWord.en);
+            return;
+          }
+          // ⬆️ 新增結束 ⬆️
+
+
+
+
 
           
           // === 閃卡模式專屬按鍵攔截 ===
@@ -2368,17 +2451,19 @@ if (direction === 'flashcard') {
         }
       };
 
-      // === 請替換成這樣 ===
       const fullList = getActiveVocab();
-      const totalWords = fullList.length;
       
-      // --- 新增的分頁變數計算 ---
+      // --- 重構：支援星號過濾的分頁計算 ---
+      const baseListForView = showOnlyStarred ? fullList.filter(w => starredWordsRef.current.includes(w.en)) : fullList;
+      const totalWordsForView = baseListForView.length;
       const WORDS_PER_PAGE = 50;
-      const totalPages = Math.ceil(totalWords / WORDS_PER_PAGE);
-      const startIndex = (currentPage - 1) * WORDS_PER_PAGE;
-      const currentList = fullList.slice(startIndex, startIndex + WORDS_PER_PAGE);
+      const totalPages = Math.ceil(totalWordsForView / WORDS_PER_PAGE) || 1;
+      const safeCurrentPage = Math.min(currentPage, totalPages);
+      const startIndex = (safeCurrentPage - 1) * WORDS_PER_PAGE;
+      const currentList = baseListForView.slice(startIndex, startIndex + WORDS_PER_PAGE);
+      
+      const totalWords = fullList.length; // 保持全局總數不變
       // -----------------------
-
       const practicedCount = practicedWords.length;
       const progressPercent = Math.round((practicedCount / totalWords) * 100) || 0;
       const sortedHistory = Object.values(historicalErrors).sort((a, b) => b.count - a.count);
@@ -2523,6 +2608,9 @@ if (direction === 'flashcard') {
                     <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>快速掃描</button>
                     <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>自由訓練</button>
                     <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題特訓</button>
+<button onClick={() => setMode('starred')} disabled={mode === 'battle' || starredWords.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'starred' ? 'bg-orange-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>星號特訓</button>
+
+
                     <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>總覽</button>
                   </div>
                   
@@ -2558,11 +2646,16 @@ if (direction === 'flashcard') {
                 {}
                 {mode === 'list' ? (
   <div className="flex flex-col h-[60vh] md:h-[calc(100vh-8rem)] md:max-h-[800px] min-h-[500px] z-10 bg-white">
-    <div className="bg-blue-100 px-6 py-3 border-b-4 border-slate-900 flex justify-between items-center shrink-0">
+    <div className="bg-blue-100 px-6 py-3 border-b-4 border-slate-900 flex justify-between items-center shrink-0 flex-wrap gap-2">
       <h2 className="font-black text-blue-900 text-lg uppercase italic">Vocabulary List</h2>
-      <span className="text-blue-700 text-sm font-bold bg-white border-2 border-slate-900 px-2 py-0.5 rounded shadow-[2px_2px_0_0_#1e293b]">
-        TOTAL {totalWords}
-      </span>
+      <div className="flex items-center gap-3">
+        <button onClick={() => setShowOnlyStarred(!showOnlyStarred)} className={`px-3 py-1 text-sm font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b] transition-transform hover:-translate-y-1 ${showOnlyStarred ? 'bg-orange-400 text-slate-900' : 'bg-white text-slate-600'}`}>
+          {showOnlyStarred ? '🌟 取消過濾' : '⭐ 只看星號'}
+        </button>
+        <span className="text-blue-700 text-sm font-bold bg-white border-2 border-slate-900 px-2 py-0.5 rounded shadow-[2px_2px_0_0_#1e293b]">
+          TOTAL {totalWordsForView}
+        </span>
+      </div>
     </div>
     
     <div className="overflow-y-auto p-4 space-y-3 flex-grow custom-scrollbar">
@@ -2579,6 +2672,12 @@ if (direction === 'flashcard') {
               {/* 修正序號顯示，讓分頁後的數字能接續下去 */}
               <span className="text-slate-400 font-black text-xs w-6 text-right">{startIndex + idx + 1}.</span>
               <span className="text-xl font-black text-slate-900 italic tracking-wide">{word.en}</span>
+
+<button onClick={(e) => toggleStar(word.en, e)} className="p-1 focus:outline-none text-2xl transition-transform hover:scale-110 drop-shadow-md">
+  {starredWords.includes(word.en) ? '⭐' : '☆'}
+</button>
+
+
               
               {/* 發音按鈕：加上 e.stopPropagation() 防止觸發外層的點擊事件 */}
               <button 
@@ -2657,6 +2756,12 @@ if (direction === 'flashcard') {
                           >
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
                              <div className={`absolute inset-0 backface-hidden rounded-2xl flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform border-4 ${swipeAnim === 'left' ? 'bg-red-200 border-red-600 shadow-[80px_0_100px_-10px_rgba(220,38,38,1)]' : swipeAnim === 'right' ? 'bg-green-200 border-green-600 shadow-[-80px_0_100px_-10px_rgba(22,163,74,1)]' : 'bg-white border-slate-900 shadow-[8px_8px_0_0_#2563eb]'}`}>
+
+<div className="absolute top-4 left-4 p-2 cursor-pointer transition-transform hover:scale-110 text-3xl drop-shadow-md z-20" onClick={(e) => toggleStar(currentWord.en, e)}>
+  {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
+</div>
+
+
                                 <div className="absolute top-4 right-4 p-2 text-slate-400 hover:text-blue-600 transition-colors" onClick={(e) => { e.stopPropagation(); playAudio(currentWord.en); }}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                                 </div>
@@ -2761,6 +2866,9 @@ if (direction === 'flashcard') {
                               <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic tracking-tight flex items-center justify-center gap-3 drop-shadow-[2px_2px_0_rgba(30,41,59,0.2)]">
                                 {askEnglish ? currentWord.zh : currentWord.en}
                                 {askEnglish && <span className="text-base md:text-xl bg-yellow-300 text-slate-900 border-4 border-slate-900 px-3 py-1 rounded-lg font-black transform rotate-3 shadow-[4px_4px_0_0_#1e293b] align-middle">{currentWord.pos}</span>}
+<button onClick={(e) => toggleStar(currentWord.en, e)} className="ml-2 text-4xl focus:outline-none transition-transform hover:scale-110 drop-shadow-md">
+    {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
+  </button>
                               </h2>
                               {currentWord.ex && (
                                 <div className="mt-6">
@@ -2919,108 +3027,196 @@ if (direction === 'flashcard') {
         )}
       </div>
               <div className="bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] flex flex-col h-[500px] md:h-[calc(100vh-10rem)] md:max-h-[800px] md:sticky md:top-8 overflow-hidden shrink-0 relative z-10">
-                <div className="flex border-b-4 border-slate-900 shrink-0">
-                  <button onClick={() => setRightTab('current')} className={`flex-1 py-4 font-black text-sm transition-colors border-r-4 border-slate-900 uppercase ${rightTab === 'current' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-red-100'}`}>
+                <div className="grid grid-cols-2 border-b-4 border-slate-900 shrink-0">
+                  <button onClick={() => setRightTab('current')} className={`py-3 font-black text-sm transition-colors border-r-4 border-b-4 border-slate-900 uppercase ${rightTab === 'current' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-red-100'}`}>
                     ERRORS ({errorList.length})
                   </button>
-                  <button onClick={() => setRightTab('history')} className={`flex-1 py-4 font-black text-sm transition-colors uppercase ${rightTab === 'history' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-100'}`}>
+                  <button onClick={() => setRightTab('history')} className={`py-3 font-black text-sm transition-colors border-b-4 border-slate-900 uppercase ${rightTab === 'history' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-100'}`}>
                     HARD WORDS
+                  </button>
+                  <button onClick={() => setRightTab('rounds')} className={`py-3 font-black text-sm transition-colors border-r-4 border-slate-900 uppercase ${rightTab === 'rounds' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-green-100'}`}>
+                    ROUNDS
+                  </button>
+                  <button onClick={() => setRightTab('starred')} className={`py-3 font-black text-sm transition-colors uppercase ${rightTab === 'starred' ? 'bg-orange-400 text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-orange-100'}`}>
+                    STARRED ({starredWords.length})
                   </button>
                 </div>
                 
                 <div className="p-4 flex-grow overflow-y-auto min-h-0 bg-slate-50 custom-scrollbar">
-                  {rightTab === 'current' ? (
-                    errorList.length === 0 ? (
-                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-                        <span className="text-6xl mb-4 font-black text-slate-300">0</span>
-                        <p className="font-black text-slate-400 uppercase tracking-widest">No Errors Found</p>
-                      </div>
-                    ) : (
-                      <ul className="space-y-3">
-                        {errorList.map((err, idx) => (
-                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
-                            <div className="pl-2">
-                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{err.en}</div>
-                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                                {err.zh}
-                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{err.pos}</span>
-                                <span className="text-[10px] bg-red-100 text-red-600 border-2 border-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">連對 {err.streak || 0}/3</span>
-                              </div>
-                            </div>
-                            <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )
-                  ) : (
-                    sortedHistory.length === 0 ? (
-                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-                        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
-                        <p className="font-black text-slate-400 uppercase tracking-widest">Perfect Score</p>
-                      </div>
-                    ) : (
-                      <ul className="space-y-3">
-                        {sortedHistory.map((item, idx) => (
-                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-black px-2 py-1 rounded-bl-lg border-b-4 border-l-4 border-slate-900 shadow-[-2px_2px_0_0_#1e293b]">
-                              錯 {item.count} 次
-                            </div>
-                            <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
-                            <div className="mt-1 pl-2">
-                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{item.word.en}</div>
-                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                                {item.word.zh}
-                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{item.word.pos}</span>
-                              </div>
-                            </div>
-                            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors mt-2" title="聽發音">
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )
-                  )}
+  {rightTab === 'current' ? (
+    errorList.length === 0 ? (
+      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+        <span className="text-6xl mb-4 font-black text-slate-300">0</span>
+        <p className="font-black text-slate-400 uppercase tracking-widest">No Errors Found</p>
+      </div>
+    ) : (
+      <ul className="space-y-3">
+        {errorList.map((err, idx) => (
+          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
+            <div className="pl-2">
+              <div className="font-black text-slate-900 text-xl italic tracking-tight">{err.en}</div>
+              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                {err.zh}
+                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{err.pos}</span>
+                <span className="text-[10px] bg-red-100 text-red-600 border-2 border-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">連對 {err.streak || 0}/3</span>
+              </div>
+            </div>
+            <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+            </button>
+          </li>
+        ))}
+      </ul>
+    )
+  ) : rightTab === 'history' ? (
+    sortedHistory.length === 0 ? (
+      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+        <p className="font-black text-slate-400 uppercase tracking-widest">Perfect Score</p>
+      </div>
+    ) : (
+      <ul className="space-y-3">
+        {sortedHistory.map((item, idx) => (
+          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-black px-2 py-1 rounded-bl-lg border-b-4 border-l-4 border-slate-900 shadow-[-2px_2px_0_0_#1e293b]">
+              錯 {item.count} 次
+            </div>
+            <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+            <div className="mt-1 pl-2">
+              <div className="font-black text-slate-900 text-xl italic tracking-tight">{item.word.en}</div>
+              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                {item.word.zh}
+                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{item.word.pos}</span>
+              </div>
+            </div>
+            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors mt-2" title="聽發音">
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+            </button>
+          </li>
+        ))}
+      </ul>
+    )
+  ) : rightTab === 'rounds' ? (
+    roundRecords.length === 0 ? (
+      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+        <p className="font-black text-slate-400 uppercase tracking-widest">No Rounds Yet</p>
+      </div>
+    ) : (
+      <ul className="space-y-3">
+        {roundRecords.map((round, idx) => (
+          <li key={idx} onClick={() => startSpecificRound(round)} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden cursor-pointer">
+            <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
+            <div className="pl-2">
+              <div className="font-black text-slate-900 text-xl italic tracking-tight">Round {idx + 1}</div>
+              <div className="text-sm font-bold text-slate-500 mt-1">包含 {round.length} 個單字</div>
+            </div>
+            <button className="bg-green-400 text-slate-900 px-3 py-1 font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b]">複習</button>
+          </li>
+        ))}
+      </ul>
+    )
+  ) : rightTab === 'starred' ? (
+    starredWords.length === 0 ? (
+      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+        <p className="font-black text-slate-400 uppercase tracking-widest">No Stars</p>
+      </div>
+    ) : (
+      <ul className="space-y-3">
+        {starredWords.map((enWord, idx) => {
+          const fullWordObj = fullList.find(w => w.en === enWord);
+          if (!fullWordObj) return null;
+          return (
+            <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-2 h-full bg-orange-400"></div>
+              <div className="pl-2">
+                <div className="font-black text-slate-900 text-xl italic tracking-tight">{fullWordObj.en}</div>
+                <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                  {fullWordObj.zh}
+                  <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{fullWordObj.pos}</span>
                 </div>
+              </div>
+              <button onClick={(e) => toggleStar(fullWordObj.en, e)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
+                 ✖
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    )
+  ) : null}
+</div>
                 
                 <div className="p-5 border-t-4 border-slate-900 bg-slate-100 flex flex-col gap-3 shrink-0">
-                  {rightTab === 'current' ? (
-                    <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-                      CLEAR ERRORS 
-                    </button>
-                  ) : (
-                    <React.Fragment>
-                      {mode === 'battle' ? (
-                        <button disabled className="w-full py-3 text-sm text-white bg-slate-500 border-4 border-slate-900 rounded-xl font-black uppercase opacity-50 cursor-not-allowed shadow-none">
-                          戰鬥中不可操作
-                        </button>
-                      ) : (
-                        <React.Fragment>
-                          <button onClick={startBattleMode} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-white bg-purple-600 hover:bg-purple-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase animate-pulse">
-                             ENTER BATTLE MODE
-                          </button>
-                          <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-                            RECALL TOP 10 
-                          </button>
-
-<button onClick={recallAllHistoricalErrors} disabled={sortedHistory.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-  RECALL ALL 
-</button>
-
-
-
-
-                          <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
-                            RESET HISTORY
-                          </button>
-                        </React.Fragment>
-                      )}
-                    </React.Fragment>
-                  )}
-                </div>
+  {rightTab === 'current' ? (
+    <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+      CLEAR ERRORS 
+    </button>
+  ) : rightTab === 'history' ? (
+    <React.Fragment>
+      {mode === 'battle' ? (
+        <button disabled className="w-full py-3 text-sm text-white bg-slate-500 border-4 border-slate-900 rounded-xl font-black uppercase opacity-50 cursor-not-allowed shadow-none">
+          戰鬥中不可操作
+        </button>
+      ) : (
+        /* 🎯 重構：2x2 網格排列，大幅縮減垂直高度 */
+        <div className="grid grid-cols-2 gap-2">
+          {/* 左上：戰鬥模式 (保留閃爍動畫) */}
+          <button onClick={startBattleMode} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-white bg-purple-600 hover:bg-purple-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase animate-pulse flex items-center justify-center">
+             ⚔️ BATTLE MODE
+          </button>
+          
+          {/* 右上：召回前十 */}
+          <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+            RECALL TOP 10 
+          </button>
+          
+          {/* 左下：召回全部 */}
+          <button onClick={recallAllHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+            RECALL ALL
+          </button>
+          
+          {/* 右下：重置歷史 (改為按鈕外觀融入網格) */}
+          <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-600 bg-slate-200 hover:bg-slate-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+            RESET HISTORY
+          </button>
+        </div>
+      )}
+    </React.Fragment>
+  ) : rightTab === 'rounds' ? (
+    <button onClick={() => {
+      if(window.confirm('確定要清空所有輪次紀錄嗎？')) setRoundRecords([]);
+    }} disabled={roundRecords.length === 0} className="w-full py-3 text-sm text-white bg-slate-800 hover:bg-slate-700 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+      CLEAR ALL ROUNDS
+    </button>
+  ) : rightTab === 'starred' ? (
+    <React.Fragment>
+      <button onClick={() => {
+        if(window.confirm('將所有星號單字召回錯題本進行特訓？')) {
+          const starredObjs = fullList.filter(w => starredWords.includes(w.en));
+          setErrorList(prev => {
+            const newList = [...prev];
+            starredObjs.forEach(w => {
+              if (!newList.some(x => x.en === w.en)) newList.push({ ...w, streak: 0 });
+            });
+            return newList;
+          });
+          setRightTab('current');
+          setMode('errors');
+        }
+      }} disabled={starredWords.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+        RECALL ALL TO ERRORS
+      </button>
+      <button onClick={() => {
+        if(window.confirm('確定要清空所有星號標記嗎？')) setStarredWords([]);
+      }} disabled={starredWords.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
+        CLEAR ALL STARS
+      </button>
+    </React.Fragment>
+  ) : null}
+</div>
               </div>
             </main>
           </div>
