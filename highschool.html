@@ -16,6 +16,9 @@
     const { useState, useEffect, useRef } = React;
 
     const VOCABULARY = [
+
+      
+    
       
 { en: "a/an", zh: "一(個)", pos: "art.", b: "L1", ex: "I saw your dad and your mom at the zoo.", ex_zh: "我在動物園看到一隻狗和你媽。" },
       { en: "able", zh: "能,可以", pos: "adj.", b: "L1", ex: "she is able to speak three languages fluently.", ex_zh: "她能流利地說三種語言。" },
@@ -6427,8 +6430,6 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
   { en: "Xerox / xerox", zh: "影印機/靜電複印法", pos: "n.", b: "L6", ex: "Could you please help me make a Xerox copy of this English article for the class?", ex_zh: "你能幫我複印（影印）這篇英文文章給全班嗎？" },
   { en: "yearn", zh: "思念/渴望", pos: "vi.", b: "L6", ex: "After studying abroad for a year, she began to yearn for her mother's home-cooked meals.", ex_zh: "在國外留學一年後，她開始渴望吃媽媽親手做的家常菜。" },
   { en: "zeal", zh: "熱心/熱誠", pos: "n.", b: "L6", ex: "The young volunteers showed great zeal and enthusiasm in helping the elderly.", ex_zh: "年輕的志工在幫助老年人時展現了極大的熱忱（熱心）與熱情。" },
-    
-
 
 
 
@@ -6437,7 +6438,7 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
 
     ];
 
-     const BOOK_LABELS = {
+    const BOOK_LABELS = {
       "L1": "高中 Level 1 (精選百字)",
       "L2": "高中 Level 2 (進階字彙)",
       "L3": "高中 Level 3 (核心字彙)",
@@ -6458,6 +6459,9 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
       const [historicalErrors, setHistoricalErrors] = useState(() => {
         try { return JSON.parse(localStorage.getItem(`vocab_hist_${selectedBook}`)) || {}; } catch(e) { return {}; }
       });
+
+// 新增：行動端專屬的底部導航狀態 (預設停留在特訓主戰場)
+const [mobileTab, setMobileTab] = useState('training');
 
 
 
@@ -6499,6 +6503,10 @@ const [showOnlyStarred, setShowOnlyStarred] = useState(false);
       const [attemptCount, setAttemptCount] = useState(0); 
 const [isDictationRevealed, setIsDictationRevealed] = useState(false);
 const [hasFailedCurrent, setHasFailedCurrent] = useState(false); // 新增：追蹤該題是否已失誤
+
+// 控制例句是否展開，且當單字切換時自動重置為隱藏
+      const [showExample, setShowExample] = useState(false);
+      useEffect(() => { setShowExample(false); }, [currentWord]);
 
       const [isFlipped, setIsFlipped] = useState(false);
 const [swipeAnim, setSwipeAnim] = useState(null); // 控制滑動方向 'left' 或 'right'
@@ -6611,16 +6619,23 @@ useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.string
       };
 
       const exportData = async () => {
-        const backupData = {};
-        Object.keys(BOOK_LABELS).forEach(b => {
-          backupData[`vocab_err_${b}`] = localStorage.getItem(`vocab_err_${b}`) || "[]";
-          backupData[`vocab_prac_${b}`] = localStorage.getItem(`vocab_prac_${b}`) || "[]";
-          backupData[`vocab_hist_${b}`] = localStorage.getItem(`vocab_hist_${b}`) || "{}";
-        });
-        
-        const jsonString = JSON.stringify(backupData, null, 2);
-        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const fileName = `Vocab_Memory_Backup_${dateStr}.json`;
+  const backupData = {};
+  Object.keys(BOOK_LABELS).forEach(b => {
+    // 系統原有的三大核心數據
+    backupData[`vocab_err_${b}`] = localStorage.getItem(`vocab_err_${b}`) || "[]";
+    backupData[`vocab_prac_${b}`] = localStorage.getItem(`vocab_prac_${b}`) || "[]";
+    backupData[`vocab_hist_${b}`] = localStorage.getItem(`vocab_hist_${b}`) || "{}";
+    
+    // 👇 新增底下這兩行，將缺失的資料維度納入序列化打包清單中 👇
+    backupData[`vocab_rounds_${b}`] = localStorage.getItem(`vocab_rounds_${b}`) || "[]";
+    backupData[`vocab_star_${b}`] = localStorage.getItem(`vocab_star_${b}`) || "[]";
+  });
+  
+  const jsonString = JSON.stringify(backupData, null, 2);
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const fileName = `Vocab_Memory_Backup_${dateStr}.json`;
+
+  // ... 底下維持原本的匯出邏輯不變 ...
 
         if (navigator.share) {
           try {
@@ -6967,7 +6982,7 @@ useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.string
       setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
     }
   } else {
-    setFeedback({ status: 'correct', msg: '答對了！' });
+    setFeedback({ status: 'correct', msg: '' });
   }
   
   if (direction === 'mcq-zh-en' || (modeRef.current === 'battle' && battleStepRef.current === 2)) playAudio(currentWord.en); 
@@ -7175,6 +7190,9 @@ if (direction === 'flashcard') {
 
       const handleSubmit = (e) => {
         e.preventDefault();
+        // 強制維持焦點，防止手機鍵盤在切換狀態時自動收合
+        if (inputRef.current) inputRef.current.focus();
+
         if (isTerminalState) { handleNextAction(); return; }
         if (direction === 'mcq-zh-en' || direction === 'mcq-en-zh') return;
         if (!userInput.trim() || !currentWord) return;
@@ -7255,7 +7273,7 @@ if (direction === 'flashcard') {
       setErrorList(prev => prev.map(w => w.en === currentWord.en ? { ...w, streak: currentStreak } : w));
     }
   } else {
-    setFeedback({ status: 'correct', msg: '答對了！' });
+    setFeedback({ status: 'correct', msg: '' });
   }
   // 【移除這裡的 setTimeout，讓畫面停留在成功狀態，等待使用者按 NEXT 或 Enter】
 } else {
@@ -7367,28 +7385,36 @@ if (direction === 'flashcard') {
       };
 
       return (
-        <div className="min-h-screen p-4 md:p-8 font-sans relative flex flex-col spider-bg text-slate-900 selection:bg-red-500 selection:text-white overflow-x-hidden">
-          <div className="max-w-6xl mx-auto space-y-6 w-full flex-1 flex flex-col relative z-10">
+       
+        <div className="h-screen w-screen md:min-h-screen md:h-auto overflow-hidden md:overflow-x-hidden md:p-8 font-sans relative flex flex-col spider-bg text-slate-900 selection:bg-red-500 selection:text-white">
+
+{/* 1. 全域容器鎖定：手機端鎖定高度防滾動，桌機端解除限制 */}
+          
+          {/* 2. 獨立滾動區區塊：手機端預留底部 20 (pb-20) 空間給導航列 */}
+          <div className="flex-1 overflow-y-auto md:overflow-visible pb-20 md:pb-0 p-4 md:p-0 max-w-6xl mx-auto space-y-0 md:space-y-6 w-full flex flex-col relative z-10 custom-scrollbar">
             
-            <header className="bg-white p-6 rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#e23636] shrink-0 relative overflow-hidden">
+            {/* =========================================
+                Tab 1: Home (設定與總覽)
+            ========================================= */}
+            <header className={`bg-white p-6 rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#e23636] shrink-0 relative overflow-hidden md:mb-0 mb-4 ${mobileTab === 'home' ? 'block' : 'hidden md:block'}`}>
               <div className="absolute -right-10 -top-4 opacity-10 text-9xl font-black italic pointer-events-none">BOOM!</div>
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10">
                 <div className="w-full lg:w-auto">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2">
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Spidey Vocab</h1>
                     <select 
-  value={selectedBook}
-  onChange={(e) => { setSelectedBook(e.target.value); e.target.blur(); }}
-  disabled={mode === 'battle'}
-  className="bg-blue-100 border-4 border-slate-900 text-blue-900 text-sm font-black rounded-lg focus:ring-0 p-2 cursor-pointer outline-none transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] w-full sm:w-auto uppercase disabled:opacity-50 disabled:hover:translate-y-0"
->
-  <option value="L1">高中 Level 1 </option>
+                      value={selectedBook}
+                      onChange={(e) => { setSelectedBook(e.target.value); e.target.blur(); }}
+                      disabled={mode === 'battle'}
+                      className="bg-blue-100 border-4 border-slate-900 text-blue-900 text-sm font-black rounded-lg focus:ring-0 p-2 cursor-pointer outline-none transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] w-full sm:w-auto uppercase disabled:opacity-50 disabled:hover:translate-y-0"
+                    >
+                      <option value="L1">高中 Level 1 </option>
   <option value="L2">高中 Level 2 </option> 
   <option value="L3">高中 Level 3 </option>
   <option value="L4">高中 Level 4 </option>
   <option value="L5">高中 Level 5 </option>
   <option value="L6">高中 Level 6 </option>
-</select>
+                    </select>
                   </div>
                   <p className="text-slate-600 mt-2 text-sm font-bold uppercase tracking-wider">
                     STEP BY STEP
@@ -7423,19 +7449,37 @@ if (direction === 'flashcard') {
               </div>
             </header>
 
-            <main className="grid md:grid-cols-3 gap-6 flex-1 items-start">
-              <div className="md:col-span-2 bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#2563eb] flex flex-col overflow-hidden relative">
-                <div className="bg-slate-100 border-b-4 border-slate-900 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 z-10">
-                  <div className="flex w-full xl:w-auto flex-wrap gap-1.5 sm:gap-2">
-                    <button onClick={() => { setMode('scan'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'scan' ? 'bg-red-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>快速掃描</button>
-                    <button onClick={() => { setMode('all'); setIsSessionActive(false); }} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'all' ? 'bg-green-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>自由訓練</button>
-                    <button onClick={() => setMode('errors')} disabled={mode === 'battle' || errorList.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'errors' ? 'bg-yellow-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>錯題特訓</button>
-<button onClick={() => setMode('starred')} disabled={mode === 'battle' || starredWords.length === 0} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'starred' ? 'bg-orange-400 text-slate-900 shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>星號特訓</button>
-
-
-                    <button onClick={() => setMode('list')} disabled={mode === 'battle'} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-transform hover:-translate-y-1 border-2 border-slate-900 ${mode === 'list' ? 'bg-blue-600 text-white shadow-[2px_2px_0_0_#1e293b]' : 'bg-white text-slate-900 shadow-[1px_1px_0_0_#1e293b]'} disabled:opacity-50 disabled:hover:translate-y-0 whitespace-nowrap`}>總覽</button>
-                  </div>
+            {/* 主體網格：桌機雙欄，手機獨立圖層 */}
+            <main className="grid md:grid-cols-3 gap-0 md:gap-6 flex-1 items-start h-full md:h-auto">
+              
+              {/* =========================================
+                  Tab 2: Training (特訓主戰場)
+              ========================================= */}
+              <div className={`md:col-span-2 bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#2563eb] flex-col overflow-hidden relative ${mobileTab === 'training' ? 'flex' : 'hidden md:flex'}`}>
+                <div className="bg-slate-100 border-b-4 border-slate-900 px-3 sm:px-6 py-3 flex flex-row justify-between items-center gap-2 sm:gap-4 shrink-0 z-10">
                   
+                  {/* 第一個下拉選單：訓練模式切換 */}
+                  <select 
+                    value={mode}
+                    onChange={(e) => {
+                      const newMode = e.target.value;
+                      setMode(newMode);
+                      if (newMode === 'scan' || newMode === 'all') {
+                        setIsSessionActive(false);
+                      }
+                      e.target.blur();
+                    }}
+                    disabled={mode === 'battle'}
+                    className="bg-white border-4 border-slate-900 text-slate-900 text-[11px] sm:text-sm font-black rounded-lg focus:ring-0 block p-2 sm:p-3 outline-none cursor-pointer hover:-translate-y-1 transition-transform shadow-[3px_3px_0_0_#1e293b] sm:shadow-[4px_4px_0_0_#1e293b] flex-1 w-full min-w-0 disabled:opacity-50 disabled:hover:translate-y-0 text-center [text-align-last:center]"
+                  >
+                    <option value="scan"> 快速掃描</option>
+                    <option value="all"> 自由訓練</option>
+                    <option value="errors" disabled={errorList.length === 0}> 錯題特訓 ({errorList.length})</option>
+                    <option value="starred" disabled={starredWords.length === 0}> 星號強化 ({starredWords.length})</option>
+                    <option value="list"> 總覽列表</option>
+                  </select>
+                  
+                  {/* 第二個下拉選單：題型方向 */}
                   {mode !== 'list' && mode !== 'scan' && (
                     <select 
                       value={direction} 
@@ -7445,10 +7489,9 @@ if (direction === 'flashcard') {
                          e.target.blur(); 
                       }} 
                       disabled={mode === 'battle'}
-                      className="bg-white border-4 border-slate-900 text-slate-900 text-sm font-black rounded-lg focus:ring-0 block p-2 outline-none cursor-pointer hover:-translate-y-1 transition-transform shadow-[4px_4px_0_0_#1e293b] w-full sm:w-auto disabled:opacity-50 disabled:hover:translate-y-0"
+                      className="bg-white border-4 border-slate-900 text-slate-900 text-[11px] sm:text-sm font-black rounded-lg focus:ring-0 block p-2 sm:p-3 outline-none cursor-pointer hover:-translate-y-1 transition-transform shadow-[3px_3px_0_0_#1e293b] sm:shadow-[4px_4px_0_0_#1e293b] flex-1 w-full min-w-0 disabled:opacity-50 disabled:hover:translate-y-0 text-center [text-align-last:center]"
                     >
-
-<optgroup label="閃卡模式">
+                      <optgroup label="閃卡模式">
                         <option value="flashcard">閃卡翻轉 (自我檢測)</option>
                       </optgroup>
                       <optgroup label="鍵盤輸入題型">
@@ -7464,93 +7507,83 @@ if (direction === 'flashcard') {
                     </select>
                   )}
                 </div>
-
-                {}
+                  
+                  
                 {mode === 'list' ? (
-  <div className="flex flex-col h-[60vh] md:h-[calc(100vh-8rem)] md:max-h-[800px] min-h-[500px] z-10 bg-white">
-    <div className="bg-blue-100 px-6 py-3 border-b-4 border-slate-900 flex justify-between items-center shrink-0 flex-wrap gap-2">
-      <h2 className="font-black text-blue-900 text-lg uppercase italic">Vocabulary List</h2>
-      <div className="flex items-center gap-3">
-        <button onClick={() => setShowOnlyStarred(!showOnlyStarred)} className={`px-3 py-1 text-sm font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b] transition-transform hover:-translate-y-1 ${showOnlyStarred ? 'bg-orange-400 text-slate-900' : 'bg-white text-slate-600'}`}>
-          {showOnlyStarred ? '🌟 取消過濾' : '⭐ 只看星號'}
-        </button>
-        <span className="text-blue-700 text-sm font-bold bg-white border-2 border-slate-900 px-2 py-0.5 rounded shadow-[2px_2px_0_0_#1e293b]">
-          TOTAL {totalWordsForView}
-        </span>
-      </div>
-    </div>
-    
-    <div className="overflow-y-auto p-4 space-y-3 flex-grow custom-scrollbar">
-      {/* 這裡改用 currentList 進行 map，並維持原本的序號 (startIndex + idx + 1) */}
-      {currentList.map((word, idx) => (
-        <div 
-          key={idx} 
-          onClick={() => handleExpandListWord(word.en)}
-          className="flex flex-col p-4 bg-white rounded-xl border-4 border-slate-900 transition-transform shadow-[4px_4px_0_0_#1e293b] group relative overflow-hidden hover:-translate-y-1 cursor-pointer"
-        >
-          <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-            <div className="flex items-center gap-3 pl-2">
-              {/* 修正序號顯示，讓分頁後的數字能接續下去 */}
-              <span className="text-slate-400 font-black text-xs w-6 text-right">{startIndex + idx + 1}.</span>
-              <span className="text-xl font-black text-slate-900 italic tracking-wide">{word.en}</span>
+                  <div className="flex flex-col h-[60vh] md:h-[calc(100vh-8rem)] md:max-h-[800px] min-h-[500px] z-10 bg-white">
+                    <div className="bg-blue-100 px-6 py-3 border-b-4 border-slate-900 flex justify-between items-center shrink-0 flex-wrap gap-2">
+                      <h2 className="font-black text-blue-900 text-lg uppercase italic">Vocabulary List</h2>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setShowOnlyStarred(!showOnlyStarred)} className={`px-3 py-1 text-sm font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b] transition-transform hover:-translate-y-1 ${showOnlyStarred ? 'bg-orange-400 text-slate-900' : 'bg-white text-slate-600'}`}>
+                          {showOnlyStarred ? '🌟 ' : '⭐ '}
+                        </button>
+                        <span className="text-blue-700 text-sm font-bold bg-white border-2 border-slate-900 px-2 py-0.5 rounded shadow-[2px_2px_0_0_#1e293b]">
+                          TOTAL {totalWordsForView}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="overflow-y-auto p-4 space-y-3 flex-grow custom-scrollbar">
+                      {currentList.map((word, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => handleExpandListWord(word.en)}
+                          className="flex flex-col p-4 bg-white rounded-xl border-4 border-slate-900 transition-transform shadow-[4px_4px_0_0_#1e293b] group relative overflow-hidden hover:-translate-y-1 cursor-pointer"
+                        >
+                          <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                            <div className="flex items-center gap-3 pl-2">
+                              <span className="text-slate-400 font-black text-xs w-6 text-right">{startIndex + idx + 1}.</span>
+                              <span className="text-xl font-black text-slate-900 italic tracking-wide">{word.en}</span>
+                              <button onClick={(e) => toggleStar(word.en, e)} className="p-1 focus:outline-none text-2xl transition-transform hover:scale-110 drop-shadow-md">
+                                {starredWords.includes(word.en) ? '⭐' : '☆'}
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); playAudio(word.en); }} 
+                                className="p-1.5 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" 
+                                title="聽發音"
+                              >
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                              </button>
+                            </div>
+                            <div className="mt-2 sm:mt-0 sm:text-right flex items-center gap-2 sm:justify-end ml-9 sm:ml-0">
+                               <span className="text-[10px] bg-yellow-300 text-slate-900 border-2 border-slate-900 px-2 py-0.5 rounded font-black uppercase shadow-[2px_2px_0_0_#1e293b]">{word.pos}</span>
+                               <span className="text-[16px] font-bold text-slate-700">{word.zh}</span>
+                            </div>
+                          </div>
+                          {expandedListWord === word.en && (
+                            <div className="mt-3 ml-9 sm:ml-10 p-3 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg text-sm font-bold text-indigo-900 space-y-1 animate-fade-in">
+                              <p className="italic">{word.ex}</p>
+                              <p className="text-slate-500">{word.ex_zh}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
 
-<button onClick={(e) => toggleStar(word.en, e)} className="p-1 focus:outline-none text-2xl transition-transform hover:scale-110 drop-shadow-md">
-  {starredWords.includes(word.en) ? '⭐' : '☆'}
-</button>
-
-
-              
-              {/* 發音按鈕：加上 e.stopPropagation() 防止觸發外層的點擊事件 */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); playAudio(word.en); }} 
-                className="p-1.5 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" 
-                title="聽發音"
-              >
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-              </button>
-              {/* 原本在這裡的 EX 按鈕已經移深了 */}
-            </div>
-            <div className="mt-2 sm:mt-0 sm:text-right flex items-center gap-2 sm:justify-end ml-9 sm:ml-0">
-               <span className="text-[10px] bg-yellow-300 text-slate-900 border-2 border-slate-900 px-2 py-0.5 rounded font-black uppercase shadow-[2px_2px_0_0_#1e293b]">{word.pos}</span>
-               <span className="text-[16px] font-bold text-slate-700">{word.zh}</span>
-            </div>
-          </div>
-          {expandedListWord === word.en && (
-            <div className="mt-3 ml-9 sm:ml-10 p-3 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg text-sm font-bold text-indigo-900 space-y-1 animate-fade-in">
-              <p className="italic">{word.ex}</p>
-              <p className="text-slate-500">{word.ex_zh}</p>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-
-    {/* 新增：底部分頁控制列 */}
-    {totalPages > 1 && (
-      <div className="bg-slate-100 px-6 py-3 border-t-4 border-slate-900 flex justify-between items-center shrink-0">
-        <button 
-          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-          className="px-4 py-2 bg-white border-2 border-slate-900 rounded font-black text-sm text-slate-900 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-white shadow-[2px_2px_0_0_#1e293b] transition-colors"
-        >
-          &lt; PREV
-        </button>
-        <span className="font-black text-slate-700 text-sm">
-          PAGE {currentPage} / {totalPages}
-        </span>
-        <button 
-          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-          disabled={currentPage === totalPages}
-          className="px-4 py-2 bg-white border-2 border-slate-900 rounded font-black text-sm text-slate-900 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-white shadow-[2px_2px_0_0_#1e293b] transition-colors"
-        >
-          NEXT &gt;
-        </button>
-      </div>
-    )}
-  </div>
-) : (
-                
+                    {totalPages > 1 && (
+                      <div className="bg-slate-100 px-6 py-3 border-t-4 border-slate-900 flex justify-between items-center shrink-0">
+                        <button 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="px-4 py-2 bg-white border-2 border-slate-900 rounded font-black text-sm text-slate-900 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-white shadow-[2px_2px_0_0_#1e293b] transition-colors"
+                        >
+                          &lt; PREV
+                        </button>
+                        <span className="font-black text-slate-700 text-sm">
+                          PAGE {currentPage} / {totalPages}
+                        </span>
+                        <button 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="px-4 py-2 bg-white border-2 border-slate-900 rounded font-black text-sm text-slate-900 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-white shadow-[2px_2px_0_0_#1e293b] transition-colors"
+                        >
+                          NEXT &gt;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <div className="p-6 md:p-10 flex-grow flex flex-col justify-center items-center min-h-[500px] z-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNlMmU4ZjAiLz48L3N2Zz4=')]">
                     {mode === 'battle' && currentWord && (
                       <div className="bg-red-600 text-white font-black px-6 py-2 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] mb-6 text-center animate-pulse w-full max-w-md uppercase tracking-wider">
@@ -7561,16 +7594,11 @@ if (direction === 'flashcard') {
                     {currentWord ? (
                       direction === 'flashcard' ? (
                         <div className="w-full max-w-md mx-auto flex flex-col items-center shrink-0">
-{mode === 'scan' && (
+                          {mode === 'scan' && (
                              <div className="mb-4 bg-slate-900 text-white font-black px-4 py-1 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#eab308] text-sm uppercase tracking-widest">
                                 掃描進度：{sessionIndex + 1} / {sessionQueue.length}
                              </div>
                           )}
-
-
-
-
-
 
                           <div 
                             className={`perspective-1000 w-full cursor-pointer transition-all duration-300 ease-in-out ${swipeAnim === 'left' ? '-translate-x-full -rotate-12 opacity-0' : ''} ${swipeAnim === 'right' ? 'translate-x-full rotate-12 opacity-0' : ''}`} 
@@ -7578,184 +7606,174 @@ if (direction === 'flashcard') {
                           >
                             <div className={`relative w-full h-80 transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
                              <div className={`absolute inset-0 backface-hidden rounded-2xl flex flex-col items-center justify-center p-6 text-center hover:-translate-y-1 transition-transform border-4 ${swipeAnim === 'left' ? 'bg-red-200 border-red-600 shadow-[80px_0_100px_-10px_rgba(220,38,38,1)]' : swipeAnim === 'right' ? 'bg-green-200 border-green-600 shadow-[-80px_0_100px_-10px_rgba(22,163,74,1)]' : 'bg-white border-slate-900 shadow-[8px_8px_0_0_#2563eb]'}`}>
-
-<div className="absolute top-4 left-4 p-2 cursor-pointer transition-transform hover:scale-110 text-3xl drop-shadow-md z-20" onClick={(e) => toggleStar(currentWord.en, e)}>
-  {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
-</div>
-
-
+                                <div className="absolute top-4 left-4 p-2 cursor-pointer transition-transform hover:scale-110 text-3xl drop-shadow-md z-20" onClick={(e) => toggleStar(currentWord.en, e)}>
+                                  {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
+                                </div>
                                 <div className="absolute top-4 right-4 p-2 text-slate-400 hover:text-blue-600 transition-colors" onClick={(e) => { e.stopPropagation(); playAudio(currentWord.en); }}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                                 </div>
-                                <span className="text-xl bg-yellow-300 text-slate-900 border-4 border-slate-900 px-3 py-1 rounded-lg font-black transform -rotate-2 mb-6 shadow-[4px_4px_0_0_#1e293b]">{currentWord.pos}</span>
+                                <span className="text-lg md:text-xl text-slate-400 font-bold italic mb-2 tracking-widest">{currentWord.pos}</span>
                                 <h2 className="text-5xl md:text-6xl font-black text-slate-900 italic tracking-tight [text-shadow:2px_2px_0_rgba(30,41,59,0.2)]">{currentWord.en}</h2>
                                 <p className="mt-8 text-sm text-slate-400 font-bold uppercase tracking-widest border-b-2 border-slate-300 pb-1">Test Your Might</p>
                               </div>
                               <div className={`absolute inset-0 backface-hidden rotate-y-180 rounded-2xl flex flex-col items-center justify-center p-6 text-center border-4 ${swipeAnim === 'left' ? 'bg-red-200 border-red-600 shadow-[80px_0_100px_-10px_rgba(220,38,38,1)]' : swipeAnim === 'right' ? 'bg-green-200 border-green-600 shadow-[-80px_0_100px_-10px_rgba(22,163,74,1)]' : 'bg-white border-slate-900 shadow-[8px_8px_0_0_#e23636]'}`}>
                                <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 [text-shadow:2px_2px_0_rgba(30,41,59,0.2)]">{currentWord.zh}</h2>
                                 {currentWord.ex && (
-                                  <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32">
-                                    <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">{currentWord.ex}</p>
-                                    <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
-                                  </div>
+                                  !showExample ? (
+                                    <button onClick={(e) => { e.stopPropagation(); setShowExample(true); }} className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 text-indigo-700 font-black rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-2">
+                                       顯示例句
+                                    </button>
+                                  ) : (
+                                    <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
+                                      <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">{currentWord.ex}</p>
+                                      <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
+                                    </div>
+                                  )
                                 )}
                               </div>
                             </div>
                           </div>
                           {isFlipped && (
-    <div className="flex gap-4 w-full mt-8 animate-fade-in">
-      <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">模糊 / 忘記</button>
-      <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">清楚掌握</button>
-    </div>
-  )}
-
-  {/* 以下為新增的手機版專屬常駐按鈕列：只有在「未翻牌 (!isFlipped)」時才顯示 */}
-  {!isFlipped && (
-      <div className="flex md:hidden w-full gap-2 mt-6 animate-fade-in">
-          <button 
-              onClick={(e) => { e.stopPropagation(); window._handleFlashcardUndo(); }} 
-              className="flex-[0.5] bg-slate-200 hover:bg-slate-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-xl"
-              title="返回上一張"
-          >
-              回溯
-          </button>
-          <button 
-              onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} 
-              className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
-          >
-              <span className="text-lg"></span> 我不會
-          </button>
-          <button 
-              onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} 
-              className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
-          >
-              <span className="text-lg"></span> 我會
-          </button>
-      </div>
-  )}
-
-</div>
+                            <div className="flex gap-4 w-full mt-8 animate-fade-in">
+                              <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">模糊 / 忘記</button>
+                              <button onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase text-lg">清楚掌握</button>
+                            </div>
+                          )}
+                          {!isFlipped && (
+                              <div className="flex md:hidden w-full gap-2 mt-6 animate-fade-in">
+                                  <button 
+                                      onClick={(e) => { e.stopPropagation(); window._handleFlashcardUndo(); }} 
+                                      className="flex-[0.5] bg-slate-200 hover:bg-slate-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-xl"
+                                      title="返回上一張"
+                                  >
+                                      回溯
+                                  </button>
+                                  <button 
+                                      onClick={(e) => { e.stopPropagation(); window._handleFlashcardUnclear(currentWord); }} 
+                                      className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
+                                  >
+                                      <span className="text-lg"></span> 我不會
+                                  </button>
+                                  <button 
+                                      onClick={(e) => { e.stopPropagation(); window._handleFlashcardGotIt(currentWord); }} 
+                                      className="flex-1 bg-green-400 hover:bg-green-300 text-slate-900 border-4 border-slate-900 py-3 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all uppercase text-sm sm:text-base flex items-center justify-center gap-1"
+                                  >
+                                      <span className="text-lg"></span> 我會
+                                  </button>
+                              </div>
+                          )}
+                        </div>
                       ) : (
                         <React.Fragment>
+                        {/* 加上 pt-16 (padding-top) 預留上方空間給按鈕，防止重疊 */}
+                            <div className="text-center mb-8 relative w-full bg-white p-6 pt-16 rounded-2xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] shrink-0">
+                              
+                              {/* === 新增：統一把星號與發音固定在容器左右上角 === */}
+                              <button type="button" onClick={(e) => toggleStar(currentWord.en, e)} className="absolute top-4 left-4 p-2 text-3xl focus:outline-none transition-transform hover:scale-110 drop-shadow-md z-20" title="標記星號">
+                                {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
+                              </button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); playAudio(currentWord.en); }} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-blue-600 focus:outline-none transition-transform hover:scale-110 z-20" title="點擊聽發音">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 drop-shadow-md" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                              </button>
 
-
-                        <div className="text-center mb-8 relative w-full bg-white p-6 rounded-2xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] shrink-0">
-                          {direction === 'dictation' ? (
-                             <div className="py-2">
-                               <button onClick={() => playAudio(currentWord.en)} className="text-slate-900 hover:text-red-600 transition-colors focus:outline-none bg-slate-100 p-6 rounded-full border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] relative group" title="點擊聽發音">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-                               </button>
-                               <p className="text-slate-900 mt-6 font-black uppercase tracking-widest bg-yellow-300 inline-block px-4 py-1 rounded border-2 border-slate-900 transform -rotate-2 shadow-[2px_2px_0_0_#1e293b]">Listen & Type</p>
-                               {(isDictationRevealed || isTerminalState) && (
-                                 <div className="mt-6 p-4 bg-blue-100 rounded-xl border-4 border-slate-900 animate-fade-in shadow-[4px_4px_0_0_#1e293b]">
-                                   <p className="text-sm text-blue-900 font-bold mb-1">
-                                      中文提示：{currentWord.zh}
-                                      <span className="text-xs bg-white border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded ml-2 font-black">{currentWord.pos}</span>
-                                   </p>
-                                   {isTerminalState && <p className="text-3xl text-red-600 font-black italic mt-2 drop-shadow-[2px_2px_0_rgba(30,41,59,0.3)]">{currentWord.en}</p>}
-                                 </div>
-                               )}
-                               {currentWord.ex && (
-                                 <div className="p-5 bg-indigo-50 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] text-left max-w-sm mx-auto transform rotate-1 mt-4 flex flex-col gap-3">
-                                   <div className="flex items-start">
-                                     <span className="text-[11px] font-black bg-indigo-600 text-white px-2.5 py-1 rounded uppercase border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] tracking-widest">
-                                       Example
-                                     </span>
-                                   </div>
-                                   <p className="text-slate-800 font-bold italic leading-relaxed text-[1.05rem]">
-                                     {!isTerminalState && !isDictationRevealed 
-                                       ? getHiddenSentence(currentWord.ex, currentWord)
-                                       : currentWord.ex}
-                                   </p>
-                                   {(isTerminalState || isDictationRevealed) && currentWord.ex_zh && (
-                                     <div className="border-t-2 border-indigo-200/50 pt-2 mt-1">
-                                       <p className="text-sm text-indigo-900/70 font-black">{currentWord.ex_zh}</p>
+                              {direction === 'dictation' ? (
+                                 <div className="py-2">
+                                   <p className="text-slate-900 font-black uppercase tracking-widest bg-yellow-300 inline-block px-4 py-1 rounded border-2 border-slate-900 transform -rotate-2 shadow-[2px_2px_0_0_#1e293b]">Listen & Type</p>
+                                   {(isDictationRevealed || isTerminalState) && (
+                                     <div className="mt-6 p-4 bg-blue-100 rounded-xl border-4 border-slate-900 animate-fade-in shadow-[4px_4px_0_0_#1e293b]">
+                                       <p className="text-sm text-blue-900 font-bold mb-1">
+                                          中文提示：{currentWord.zh}
+                                          <span className="text-xs bg-white border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded ml-2 font-black">{currentWord.pos}</span>
+                                       </p>
+                                       {isTerminalState && <p className="text-3xl text-red-600 font-black italic mt-2 drop-shadow-[2px_2px_0_rgba(30,41,59,0.3)]">{currentWord.en}</p>}
+                                     </div>
+                                   )}
+                                   {currentWord.ex && (
+                                     <div className="mt-4 w-full max-w-sm mx-auto">
+                                       {!showExample ? (
+                                         <button type="button" onClick={() => setShowExample(true)} className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 text-indigo-700 font-black rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+                                            顯示例句
+                                         </button>
+                                       ) : (
+                                         <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
+                                           <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">
+                                             {!isTerminalState && !isDictationRevealed ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex}
+                                           </p>
+                                           {(isTerminalState || isDictationRevealed) && currentWord.ex_zh && (
+                                             <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
+                                           )}
+                                         </div>
+                                       )}
                                      </div>
                                    )}
                                  </div>
-                               )}
-                             </div>
-                          ) : (
-
-
-                            <div className="py-2 relative">
-                              <p className="text-slate-500 mb-3 font-bold flex items-center justify-center gap-2 uppercase tracking-wider text-sm">
-                                {askEnglish ? 'TRANSLATE TO ENGLISH' : 'TRANSLATE TO CHINESE'}
-                                <button onClick={() => playAudio(currentWord.en)} className="bg-red-100 text-red-600 hover:bg-red-200 p-1.5 rounded border-2 border-slate-900 transition-colors focus:outline-none shadow-[2px_2px_0_0_#1e293b] relative" title="唸給我聽">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-                                </button>
-                              </p>
-                              <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic tracking-tight flex items-center justify-center gap-3 drop-shadow-[2px_2px_0_rgba(30,41,59,0.2)]">
-                                {askEnglish ? currentWord.zh : currentWord.en}
-                                {askEnglish && <span className="text-base md:text-xl bg-yellow-300 text-slate-900 border-4 border-slate-900 px-3 py-1 rounded-lg font-black transform rotate-3 shadow-[4px_4px_0_0_#1e293b] align-middle">{currentWord.pos}</span>}
-<button onClick={(e) => toggleStar(currentWord.en, e)} className="ml-2 text-4xl focus:outline-none transition-transform hover:scale-110 drop-shadow-md">
-    {starredWords.includes(currentWord.en) ? '⭐' : '☆'}
-  </button>
-                              </h2>
-                              {currentWord.ex && (
-                                <div className="mt-6">
-                                  <div className="p-5 bg-indigo-50 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] text-left max-w-sm mx-auto transform -rotate-1 flex flex-col gap-3">
-                                    <div className="flex items-start">
-                                      <span className="text-[11px] font-black bg-indigo-600 text-white px-2.5 py-1 rounded uppercase border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] tracking-widest">
-                                        Example
-                                      </span>
+                              ) : (
+                                <div className="py-2 relative">
+                                 
+                                  <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic tracking-tight flex items-end justify-center drop-shadow-[2px_2px_0_rgba(30,41,59,0.2)]">
+  {askEnglish ? currentWord.zh : currentWord.en}
+  {askEnglish && <span className="text-xl md:text-2xl text-slate-400 font-bold italic ml-3 mb-1">{currentWord.pos}</span>}
+</h2>
+                                  
+                                  {currentWord.ex && (
+                                    <div className="mt-6 w-full max-w-sm mx-auto">
+                                      {!showExample ? (
+                                        <button type="button" onClick={() => setShowExample(true)} className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 text-indigo-700 font-black rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+                                           顯示例句
+                                        </button>
+                                      ) : (
+                                        <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
+                                          <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">
+                                            {askEnglish && !isTerminalState ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex}
+                                          </p>
+                                          {isTerminalState && currentWord.ex_zh && (
+                                            <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
-                                    <p className="text-slate-800 font-bold italic leading-relaxed text-[1.05rem]">
-                                      {askEnglish && !isTerminalState 
-                                        ? getHiddenSentence(currentWord.ex, currentWord)
-                                        : currentWord.ex}
-                                    </p>
-                                    {isTerminalState && currentWord.ex_zh && (
-                                      <div className="border-t-2 border-indigo-200/50 pt-2 mt-1">
-                                        <p className="text-sm text-indigo-900/70 font-black">{currentWord.ex_zh}</p>
-                                      </div>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
                               )}
                             </div>
-                          )}
-                        </div>
 
                         {direction === 'mcq-zh-en' || direction === 'mcq-en-zh' ? (
                           <div className="w-full max-w-md mx-auto space-y-3 shrink-0">
-                            {multipleChoiceOptions.map((option, idx) => {
-                              let btnClass = "w-full text-left px-5 py-4 rounded-xl border-4 font-black text-lg transition-transform shadow-[4px_4px_0_0_#1e293b] flex items-center ";
-                              if (!isTerminalState) {
-                                btnClass += "border-slate-900 bg-white text-slate-900 hover:-translate-y-1 hover:bg-blue-50";
-                              } else {
-                                if (option.en === currentWord.en) {
-                                  btnClass += "border-slate-900 bg-green-400 text-slate-900 translate-x-1 translate-y-1 shadow-none";
-                                } else if (selectedOption && option.en === selectedOption.en) {
-                                  btnClass += "border-slate-900 bg-red-500 text-white translate-x-1 translate-y-1 shadow-none";
+                           {multipleChoiceOptions
+                              // 核心過濾邏輯：如果還在作答中就全顯示；如果結算了，只保留正確選項
+                              .filter(option => !isTerminalState || option.en === currentWord.en)
+                              .map((option, idx) => {
+                                let btnClass = "w-full text-left px-5 py-4 rounded-xl border-4 font-black text-lg transition-transform shadow-[4px_4px_0_0_#1e293b] flex items-center ";
+                                if (!isTerminalState) {
+                                  btnClass += "border-slate-900 bg-white text-slate-900 hover:-translate-y-1 hover:bg-blue-50";
                                 } else {
-                                  btnClass += "border-slate-900 bg-slate-200 text-slate-500 opacity-50 shadow-none";
+                                  // 結算狀態下（無論原先答對或答錯），留下來的必定是正確答案，直接賦予綠色正確樣式
+                                  btnClass += "border-slate-900 bg-green-400 text-slate-900 translate-x-1 translate-y-1 shadow-none cursor-default";
                                 }
-                              }
-                              return (
-                                <button key={idx} onClick={() => handleOptionClick(option)} disabled={isTerminalState} className={btnClass}>
-                                  {askEnglish ? option.en : `${option.zh} [${option.pos}]`}
-                                </button>
-                              );
-                            })}
+                                return (
+                                  <button key={idx} onClick={() => handleOptionClick(option)} disabled={isTerminalState} className={btnClass}>
+                                    {askEnglish ? option.en : `${option.zh} [${option.pos}]`}
+                                  </button>
+                                );
+                              })}
                             {!isTerminalState && (
                               <button onClick={() => { handleUnfamiliar(); if (direction === 'mcq-zh-en') playAudio(currentWord.en); }} className="w-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 py-3.5 rounded-xl border-4 border-slate-900 font-black shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform text-lg mt-4 uppercase flex items-center justify-center gap-2">
                                 UNCLEAR (不熟)
                               </button>
                             )}
-                            <div className="min-h-[4rem] flex items-center justify-center text-center mt-2">
-                              {feedback && (
+                            {/* 只有當 feedback 存在且有訊息內容時才顯示這塊方塊 */}
+                            {feedback && feedback.msg && (
+                              <div className="flex items-center justify-center text-center mt-4 animate-fade-in">
                                 <div className={`text-lg font-black px-6 py-2 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] w-full transform -rotate-1 ${feedback.status === 'correct' ? 'bg-green-400 text-slate-900' : feedback.status === 'unfamiliar' ? 'bg-yellow-400 text-slate-900' : 'bg-red-500 text-white'}`}>
                                   {feedback.msg}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
                             {isTerminalState && (
-  // 加上 autoFocus 屬性
-  <button autoFocus onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-xl mt-1 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex items-center justify-center gap-2">
-    NEXT 
-  </button>
-)}
+                              <button autoFocus onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-xl mt-1 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex items-center justify-center gap-2">
+                                NEXT 
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <form onSubmit={handleSubmit} className="w-full max-w-md shrink-0">
@@ -7779,36 +7797,35 @@ if (direction === 'flashcard') {
                                 </button>
                               )}
                             </div>
-                            <div className="min-h-[4rem] mt-6 flex items-center justify-center text-center">
-                              {feedback && (
+                            {/* 只有當 feedback 存在且有訊息內容時才顯示這塊方塊 */}
+                            {feedback && feedback.msg && (
+                              <div className="mt-5 flex items-center justify-center text-center animate-fade-in">
                                 <div className={`text-lg font-black px-6 py-2 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] w-full transform ${feedback.status === 'correct' ? 'bg-green-400 text-slate-900 rotate-1' : feedback.status === 'unfamiliar' || feedback.status === 'hint' ? 'bg-yellow-400 text-slate-900 -rotate-1' : 'bg-red-500 text-white -rotate-1'}`}>
                                   {feedback.msg}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
+                            
                             {isTerminalState ? (
-   // 加上 autoFocus 屬性
-   <button type="button" autoFocus onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[6px_6px_0_0_#1e293b] text-xl mt-4 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex justify-center items-center gap-3">
-      NEXT 
-   </button>
-) : (
-                               <div className="flex flex-col gap-4 mt-4">
-                                  <button type="submit" className="w-full bg-red-600 hover:bg-red-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[6px_6px_0_0_#1e293b] text-xl transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none uppercase tracking-wider flex justify-center items-center gap-3">
-                                     SUBMIT (提交) 
+                               <button type="button" onClick={handleNextAction} className="w-full bg-blue-600 hover:bg-blue-500 text-white border-4 border-slate-900 py-4 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-xl mt-4 transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none focus:outline-none uppercase tracking-widest flex justify-center items-center gap-3">
+                                  NEXT 
+                               </button>
+                            ) : (
+                               <div className="flex flex-row gap-3 mt-4">
+                                  <button type="button" onClick={handleUnfamiliar} className="flex-[0.8] bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] text-sm sm:text-base uppercase flex justify-center items-center gap-2">
+                                     UNCLEAR 
                                   </button>
-                                  <div className="flex gap-4">
-                                     <button type="button" onClick={handleUnfamiliar} className="w-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 border-4 border-slate-900 py-3.5 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] text-base uppercase flex justify-center items-center gap-2">
-                                        UNCLEAR 
-                                     </button>
-                                  </div>
+                                  <button type="submit" className="flex-[1.2] bg-red-600 hover:bg-red-500 text-white border-4 border-slate-900 py-3.5 rounded-xl font-black shadow-[4px_4px_0_0_#1e293b] text-base sm:text-xl transition-transform transform hover:-translate-y-1 active:translate-y-0 active:shadow-none uppercase tracking-wider flex justify-center items-center gap-2">
+                                     SUBMIT  
+                                  </button>
                                </div>
                             )}
                           </form>
                         )}
-                      </React.Fragment>
+                        </React.Fragment>
                       )
                     ) : (
-                        <div className="text-center text-slate-900 py-16 animate-fade-in flex flex-col items-center justify-center w-full">
+                      <div className="text-center text-slate-900 py-16 animate-fade-in flex flex-col items-center justify-center w-full">
                         {mode === 'scan' ? (
                           <React.Fragment>
                             <span className="text-7xl block mb-6 drop-shadow-[4px_4px_0_rgba(30,41,59,1)]">📡</span>
@@ -7841,14 +7858,18 @@ if (direction === 'flashcard') {
                                   返回快速掃描
                                </button>
                             )}
-                  </React.Fragment>
+                          </React.Fragment>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
-      </div>
-              <div className="bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] flex flex-col h-[500px] md:h-[calc(100vh-10rem)] md:max-h-[800px] md:sticky md:top-8 overflow-hidden shrink-0 relative z-10">
+
+              {/* =========================================
+                  Tab 3: Dashboard (數據與圖表)
+              ========================================= */}
+              <div className={`bg-white rounded-xl border-4 border-slate-900 shadow-[8px_8px_0_0_#eab308] flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-10rem)] md:max-h-[800px] md:sticky md:top-8 overflow-hidden shrink-0 relative z-10 ${mobileTab === 'dashboard' ? 'flex' : 'hidden md:flex'}`}>
                 <div className="grid grid-cols-2 border-b-4 border-slate-900 shrink-0">
                   <button onClick={() => setRightTab('current')} className={`py-3 font-black text-sm transition-colors border-r-4 border-b-4 border-slate-900 uppercase ${rightTab === 'current' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-red-100'}`}>
                     ERRORS ({errorList.length})
@@ -7865,183 +7886,204 @@ if (direction === 'flashcard') {
                 </div>
                 
                 <div className="p-4 flex-grow overflow-y-auto min-h-0 bg-slate-50 custom-scrollbar">
-  {rightTab === 'current' ? (
-    errorList.length === 0 ? (
-      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-        <span className="text-6xl mb-4 font-black text-slate-300">0</span>
-        <p className="font-black text-slate-400 uppercase tracking-widest">No Errors Found</p>
-      </div>
-    ) : (
-      <ul className="space-y-3">
-        {errorList.map((err, idx) => (
-          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
-            <div className="pl-2">
-              <div className="font-black text-slate-900 text-xl italic tracking-tight">{err.en}</div>
-              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                {err.zh}
-                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{err.pos}</span>
-                <span className="text-[10px] bg-red-100 text-red-600 border-2 border-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">連對 {err.streak || 0}/3</span>
-              </div>
-            </div>
-            <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-            </button>
-          </li>
-        ))}
-      </ul>
-    )
-  ) : rightTab === 'history' ? (
-    sortedHistory.length === 0 ? (
-      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
-        <p className="font-black text-slate-400 uppercase tracking-widest">Perfect Score</p>
-      </div>
-    ) : (
-      <ul className="space-y-3">
-        {sortedHistory.map((item, idx) => (
-          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-black px-2 py-1 rounded-bl-lg border-b-4 border-l-4 border-slate-900 shadow-[-2px_2px_0_0_#1e293b]">
-              錯 {item.count} 次
-            </div>
-            <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
-            <div className="mt-1 pl-2">
-              <div className="font-black text-slate-900 text-xl italic tracking-tight">{item.word.en}</div>
-              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                {item.word.zh}
-                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{item.word.pos}</span>
-              </div>
-            </div>
-            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors mt-2" title="聽發音">
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-            </button>
-          </li>
-        ))}
-      </ul>
-    )
-  ) : rightTab === 'rounds' ? (
-    roundRecords.length === 0 ? (
-      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
-        <p className="font-black text-slate-400 uppercase tracking-widest">No Rounds Yet</p>
-      </div>
-    ) : (
-      <ul className="space-y-3">
-        {roundRecords.map((round, idx) => (
-          <li key={idx} onClick={() => startSpecificRound(round)} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden cursor-pointer">
-            <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
-            <div className="pl-2">
-              <div className="font-black text-slate-900 text-xl italic tracking-tight">Round {idx + 1}</div>
-              <div className="text-sm font-bold text-slate-500 mt-1">包含 {round.length} 個單字</div>
-            </div>
-            <button className="bg-green-400 text-slate-900 px-3 py-1 font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b]">複習</button>
-          </li>
-        ))}
-      </ul>
-    )
-  ) : rightTab === 'starred' ? (
-    starredWords.length === 0 ? (
-      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
-        <p className="font-black text-slate-400 uppercase tracking-widest">No Stars</p>
-      </div>
-    ) : (
-      <ul className="space-y-3">
-        {starredWords.map((enWord, idx) => {
-          const fullWordObj = fullList.find(w => w.en === enWord);
-          if (!fullWordObj) return null;
-          return (
-            <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-2 h-full bg-orange-400"></div>
-              <div className="pl-2">
-                <div className="font-black text-slate-900 text-xl italic tracking-tight">{fullWordObj.en}</div>
-                <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                  {fullWordObj.zh}
-                  <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{fullWordObj.pos}</span>
+                  {rightTab === 'current' ? (
+                    errorList.length === 0 ? (
+                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+                        <span className="text-6xl mb-4 font-black text-slate-300">0</span>
+                        <p className="font-black text-slate-400 uppercase tracking-widest">No Errors Found</p>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {errorList.map((err, idx) => (
+                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
+                            <div className="pl-2">
+                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{err.en}</div>
+                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                                {err.zh}
+                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{err.pos}</span>
+                                <span className="text-[10px] bg-red-100 text-red-600 border-2 border-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">連對 {err.streak || 0}/3</span>
+                              </div>
+                            </div>
+                            <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
+                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : rightTab === 'history' ? (
+                    sortedHistory.length === 0 ? (
+                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+                        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+                        <p className="font-black text-slate-400 uppercase tracking-widest">Perfect Score</p>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {sortedHistory.map((item, idx) => (
+                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+                            <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-black px-2 py-1 rounded-bl-lg border-b-4 border-l-4 border-slate-900 shadow-[-2px_2px_0_0_#1e293b]">
+                              錯 {item.count} 次
+                            </div>
+                            <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                            <div className="mt-1 pl-2">
+                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{item.word.en}</div>
+                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                                {item.word.zh}
+                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{item.word.pos}</span>
+                              </div>
+                            </div>
+                            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors mt-2" title="聽發音">
+                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : rightTab === 'rounds' ? (
+                    roundRecords.length === 0 ? (
+                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+                        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+                        <p className="font-black text-slate-400 uppercase tracking-widest">No Rounds Yet</p>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {roundRecords.map((round, idx) => (
+                          <li key={idx} onClick={() => startSpecificRound(round)} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden cursor-pointer">
+                            <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
+                            <div className="pl-2">
+                              <div className="font-black text-slate-900 text-xl italic tracking-tight">Round {idx + 1}</div>
+                              <div className="text-sm font-bold text-slate-500 mt-1">包含 {round.length} 個單字</div>
+                            </div>
+                            <button className="bg-green-400 text-slate-900 px-3 py-1 font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b]">複習</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : rightTab === 'starred' ? (
+                    starredWords.length === 0 ? (
+                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+                        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+                        <p className="font-black text-slate-400 uppercase tracking-widest">No Stars</p>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {starredWords.map((enWord, idx) => {
+                          const fullWordObj = fullList.find(w => w.en === enWord);
+                          if (!fullWordObj) return null;
+                          return (
+                            <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-2 h-full bg-orange-400"></div>
+                              <div className="pl-2">
+                                <div className="font-black text-slate-900 text-xl italic tracking-tight">{fullWordObj.en}</div>
+                                <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                                  {fullWordObj.zh}
+                                  <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{fullWordObj.pos}</span>
+                                </div>
+                              </div>
+                              <button onClick={(e) => toggleStar(fullWordObj.en, e)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
+                                 ✖
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )
+                  ) : null}
                 </div>
-              </div>
-              <button onClick={(e) => toggleStar(fullWordObj.en, e)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
-                 ✖
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    )
-  ) : null}
-</div>
                 
                 <div className="p-5 border-t-4 border-slate-900 bg-slate-100 flex flex-col gap-3 shrink-0">
-  {rightTab === 'current' ? (
-    <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-      CLEAR ERRORS 
-    </button>
-  ) : rightTab === 'history' ? (
-    <React.Fragment>
-      {mode === 'battle' ? (
-        <button disabled className="w-full py-3 text-sm text-white bg-slate-500 border-4 border-slate-900 rounded-xl font-black uppercase opacity-50 cursor-not-allowed shadow-none">
-          戰鬥中不可操作
-        </button>
-      ) : (
-        /* 🎯 重構：2x2 網格排列，大幅縮減垂直高度 */
-        <div className="grid grid-cols-2 gap-2">
-          {/* 左上：戰鬥模式 (保留閃爍動畫) */}
-          <button onClick={startBattleMode} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-white bg-purple-600 hover:bg-purple-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase animate-pulse flex items-center justify-center">
-             ⚔️ BATTLE MODE
-          </button>
-          
-          {/* 右上：召回前十 */}
-          <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
-            RECALL TOP 10 
-          </button>
-          
-          {/* 左下：召回全部 */}
-          <button onClick={recallAllHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
-            RECALL ALL
-          </button>
-          
-          {/* 右下：重置歷史 (改為按鈕外觀融入網格) */}
-          <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-600 bg-slate-200 hover:bg-slate-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
-            RESET HISTORY
-          </button>
-        </div>
-      )}
-    </React.Fragment>
-  ) : rightTab === 'rounds' ? (
-    <button onClick={() => {
-      if(window.confirm('確定要清空所有輪次紀錄嗎？')) setRoundRecords([]);
-    }} disabled={roundRecords.length === 0} className="w-full py-3 text-sm text-white bg-slate-800 hover:bg-slate-700 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-      CLEAR ALL ROUNDS
-    </button>
-  ) : rightTab === 'starred' ? (
-    <React.Fragment>
-      <button onClick={() => {
-        if(window.confirm('將所有星號單字召回錯題本進行特訓？')) {
-          const starredObjs = fullList.filter(w => starredWords.includes(w.en));
-          setErrorList(prev => {
-            const newList = [...prev];
-            starredObjs.forEach(w => {
-              if (!newList.some(x => x.en === w.en)) newList.push({ ...w, streak: 0 });
-            });
-            return newList;
-          });
-          setRightTab('current');
-          setMode('errors');
-        }
-      }} disabled={starredWords.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-        RECALL ALL TO ERRORS
-      </button>
-      <button onClick={() => {
-        if(window.confirm('確定要清空所有星號標記嗎？')) setStarredWords([]);
-      }} disabled={starredWords.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
-        CLEAR ALL STARS
-      </button>
-    </React.Fragment>
-  ) : null}
-</div>
+                  {rightTab === 'current' ? (
+                    <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                      CLEAR ERRORS 
+                    </button>
+                  ) : rightTab === 'history' ? (
+                    <React.Fragment>
+                      {mode === 'battle' ? (
+                        <button disabled className="w-full py-3 text-sm text-white bg-slate-500 border-4 border-slate-900 rounded-xl font-black uppercase opacity-50 cursor-not-allowed shadow-none">
+                          戰鬥中不可操作
+                        </button>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={startBattleMode} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-white bg-purple-600 hover:bg-purple-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase animate-pulse flex items-center justify-center">
+                             ⚔️ BATTLE MODE
+                          </button>
+                          <button onClick={recallHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-yellow-400 hover:bg-yellow-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+                            RECALL TOP 10 
+                          </button>
+                          <button onClick={recallAllHistoricalErrors} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+                            RECALL ALL
+                          </button>
+                          <button onClick={requestClearHistory} disabled={sortedHistory.length === 0} className="py-2 text-[11px] sm:text-xs text-slate-600 bg-slate-200 hover:bg-slate-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[2px_2px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase flex items-center justify-center">
+                            RESET HISTORY
+                          </button>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ) : rightTab === 'rounds' ? (
+                    <button onClick={() => {
+                      if(window.confirm('確定要清空所有輪次紀錄嗎？')) setRoundRecords([]);
+                    }} disabled={roundRecords.length === 0} className="w-full py-3 text-sm text-white bg-slate-800 hover:bg-slate-700 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                      CLEAR ALL ROUNDS
+                    </button>
+                  ) : rightTab === 'starred' ? (
+                    <React.Fragment>
+                      <button onClick={() => {
+                        if(window.confirm('將所有星號單字召回錯題本進行特訓？')) {
+                          const starredObjs = fullList.filter(w => starredWords.includes(w.en));
+                          setErrorList(prev => {
+                            const newList = [...prev];
+                            starredObjs.forEach(w => {
+                              if (!newList.some(x => x.en === w.en)) newList.push({ ...w, streak: 0 });
+                            });
+                            return newList;
+                          });
+                          setRightTab('current');
+                          setMode('errors');
+                        }
+                      }} disabled={starredWords.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                        RECALL ALL TO ERRORS
+                      </button>
+                      <button onClick={() => {
+                        if(window.confirm('確定要清空所有星號標記嗎？')) setStarredWords([]);
+                      }} disabled={starredWords.length === 0} className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg font-bold transition-colors focus:outline-none disabled:opacity-50 uppercase tracking-wider">
+                        CLEAR ALL STARS
+                      </button>
+                    </React.Fragment>
+                  ) : null}
+                </div>
               </div>
             </main>
           </div>
+
+          {/* =========================================
+              3. 新增：底部導航列 Bottom Navigation (僅限手機端顯示)
+          ========================================= */}
+          <nav className="md:hidden fixed bottom-0 left-0 w-full bg-slate-900 border-t-4 border-slate-900 flex justify-around items-center h-16 z-50">
+            <button 
+              onClick={() => setMobileTab('home')} 
+              className={`flex-1 flex flex-col items-center justify-center h-full font-black text-[10px] uppercase tracking-widest transition-colors ${mobileTab === 'home' ? 'bg-amber-400 text-slate-900' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+            >
+              <span className="text-xl mb-0.5">⚙️</span>
+              設定
+            </button>
+            
+            <button 
+              onClick={() => setMobileTab('training')} 
+              className={`flex-1 flex flex-col items-center justify-center h-full font-black text-[10px] uppercase tracking-widest transition-colors border-x-4 border-slate-900 ${mobileTab === 'training' ? 'bg-red-500 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+            >
+              <span className="text-xl mb-0.5">⚔️</span>
+              特訓
+            </button>
+            
+            <button 
+              onClick={() => setMobileTab('dashboard')} 
+              className={`flex-1 flex flex-col items-center justify-center h-full font-black text-[10px] uppercase tracking-widest transition-colors ${mobileTab === 'dashboard' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+            >
+              <span className="text-xl mb-0.5">📊</span>
+              數據
+            </button>
+          </nav>
 
           {confirmModal.isOpen && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
