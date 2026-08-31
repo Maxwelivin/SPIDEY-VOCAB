@@ -16,7 +16,6 @@
     const { useState, useEffect, useRef } = React;
 
     const VOCABULARY = [
-
       
     
       
@@ -6430,6 +6429,9 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
   { en: "Xerox / xerox", zh: "影印機/靜電複印法", pos: "n.", b: "L6", ex: "Could you please help me make a Xerox copy of this English article for the class?", ex_zh: "你能幫我複印（影印）這篇英文文章給全班嗎？" },
   { en: "yearn", zh: "思念/渴望", pos: "vi.", b: "L6", ex: "After studying abroad for a year, she began to yearn for her mother's home-cooked meals.", ex_zh: "在國外留學一年後，她開始渴望吃媽媽親手做的家常菜。" },
   { en: "zeal", zh: "熱心/熱誠", pos: "n.", b: "L6", ex: "The young volunteers showed great zeal and enthusiasm in helping the elderly.", ex_zh: "年輕的志工在幫助老年人時展現了極大的熱忱（熱心）與熱情。" },
+      
+    
+
 
 
 
@@ -6495,6 +6497,8 @@ const [showOnlyStarred, setShowOnlyStarred] = useState(false);
       const [currentWord, setCurrentWord] = useState(null);
       const [askEnglish, setAskEnglish] = useState(true);
       const [userInput, setUserInput] = useState('');
+// 控制錯題消除的門檻（預設為 3 次）
+  const [clearThreshold, setClearThreshold] = useState(3);
       
       const [multipleChoiceOptions, setMultipleChoiceOptions] = useState([]);
       const [selectedOption, setSelectedOption] = useState(null); 
@@ -6974,7 +6978,7 @@ useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.string
     }
   } else if (modeRef.current === 'errors') {
     const currentStreak = (currentWord.streak || 0) + 1;
-    if (currentStreak >= 3) {
+    if (currentStreak >= clearThreshold) {
       setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
       setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
     } else {
@@ -7066,7 +7070,7 @@ window._handleFlashcardGotIt = (word) => {
     // 【新增】：錯題本的連對累加與消滅機制
     if (modeRef.current === 'errors') {
       const currentStreak = (word.streak || 0) + 1;
-      if (currentStreak >= 3) {
+      if (currentStreak >= clearThreshold) {
         // 連對 3 次，移出錯題本
         setErrorList(prev => prev.filter(w => w.en !== word.en));
       } else {
@@ -7265,7 +7269,7 @@ if (direction === 'flashcard') {
     }
   } else if (modeRef.current === 'errors') {
     const currentStreak = (currentWord.streak || 0) + 1;
-    if (currentStreak >= 3) {
+    if (currentStreak >= clearThreshold) {
       setFeedback({ status: 'correct', msg: '🎉 完美掌握！已移出錯題本！' });
       setErrorList(prev => prev.filter(w => w.en !== currentWord.en));
     } else {
@@ -7515,7 +7519,7 @@ if (direction === 'flashcard') {
                       <h2 className="font-black text-blue-900 text-lg uppercase italic">Vocabulary List</h2>
                       <div className="flex items-center gap-3">
                         <button onClick={() => setShowOnlyStarred(!showOnlyStarred)} className={`px-3 py-1 text-sm font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b] transition-transform hover:-translate-y-1 ${showOnlyStarred ? 'bg-orange-400 text-slate-900' : 'bg-white text-slate-600'}`}>
-                          {showOnlyStarred ? '🌟 ' : '⭐ '}
+                          {showOnlyStarred ? '🌟 取消過濾' : '⭐ 只看星號'}
                         </button>
                         <span className="text-blue-700 text-sm font-bold bg-white border-2 border-slate-900 px-2 py-0.5 rounded shadow-[2px_2px_0_0_#1e293b]">
                           TOTAL {totalWordsForView}
@@ -7715,7 +7719,7 @@ if (direction === 'flashcard') {
   {askEnglish && <span className="text-xl md:text-2xl text-slate-400 font-bold italic ml-3 mb-1">{currentWord.pos}</span>}
 </h2>
                                   
-                                  {currentWord.ex && (
+                                 {currentWord.ex && (
                                     <div className="mt-6 w-full max-w-sm mx-auto">
                                       {!showExample ? (
                                         <button type="button" onClick={() => setShowExample(true)} className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 text-indigo-700 font-black rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
@@ -7887,31 +7891,56 @@ if (direction === 'flashcard') {
                 
                 <div className="p-4 flex-grow overflow-y-auto min-h-0 bg-slate-50 custom-scrollbar">
                   {rightTab === 'current' ? (
-                    errorList.length === 0 ? (
-                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
-                        <span className="text-6xl mb-4 font-black text-slate-300">0</span>
-                        <p className="font-black text-slate-400 uppercase tracking-widest">No Errors Found</p>
-                      </div>
-                    ) : (
-                      <ul className="space-y-3">
-                        {errorList.map((err, idx) => (
-                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
-                            <div className="pl-2">
-                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{err.en}</div>
-                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
-                                {err.zh}
-                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{err.pos}</span>
-                                <span className="text-[10px] bg-red-100 text-red-600 border-2 border-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">連對 {err.streak || 0}/3</span>
-                              </div>
-                            </div>
-                            <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )
+                        errorList.length === 0 ? (
+  <div className="flex-1 text-center text-slate-400 py-16 flex flex-col items-center justify-center">
+    <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+    <p className="font-black text-slate-400 uppercase tracking-widest">Perfect Score</p>
+  </div>
+) : (
+                          <div className="flex flex-col">
+                            
+                           {/* 新增：錯題消除條件控制器 */}
+<div className="bg-slate-100 p-3 rounded-xl border-4 border-slate-900 shadow-[4px_4px_0_0_#1e293b] mb-4 flex items-center shrink-0">
+  <div className="flex gap-2 w-full">
+    <button onClick={() => setClearThreshold(1)} className={`flex-1 px-3 py-1.5 font-black text-xs sm:text-sm rounded-lg border-2 border-slate-900 transition-all focus:outline-none ${clearThreshold === 1 ? 'bg-red-500 text-white translate-y-px shadow-none' : 'bg-white text-slate-900 shadow-[2px_2px_0_0_#1e293b] hover:-translate-y-0.5'}`}>
+      速刷 
+    </button>
+    <button onClick={() => setClearThreshold(3)} className={`flex-1 px-3 py-1.5 font-black text-xs sm:text-sm rounded-lg border-2 border-slate-900 transition-all focus:outline-none ${clearThreshold === 3 ? 'bg-blue-600 text-white translate-y-px shadow-none' : 'bg-white text-slate-900 shadow-[2px_2px_0_0_#1e293b] hover:-translate-y-0.5'}`}>
+      深度 
+    </button>
+  </div>
+</div>
+
+                            {/* 錯題列表 */}
+                            <ul className="flex flex-col pr-2 space-y-3 mb-4">
+                              {errorList.map((err, idx) => (
+                                <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden shrink-0">
+                                  <div className="absolute top-0 right-0 bg-yellow-300 text-slate-900 text-xs font-black px-2 py-1 rounded-bl-lg border-b-4 border-l-4 border-slate-900 shadow-[-2px_2px_0_0_#1e293b]">
+                                    連對 {err.streak || 0}/{clearThreshold}
+                                  </div>
+                                  <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
+                                  
+                                  <div className="pl-2 mt-1">
+                                    <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2">
+                                      {err.en}
+                                      <span className="text-sm text-slate-400 font-bold italic tracking-widest">{err.pos}</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-slate-600 mt-1">
+                                      {err.zh}
+                                    </div>
+                                  </div>
+                                  
+                                  <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors relative z-10 mt-2" title="聽發音">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                            
+                            {/* 清空按鈕 (回歸正常文件流) */}
+                            
+                          </div>
+                        )
                   ) : rightTab === 'history' ? (
                     sortedHistory.length === 0 ? (
                       <div className="text-center text-slate-400 py-16 flex flex-col items-center">
@@ -7926,14 +7955,19 @@ if (direction === 'flashcard') {
                               錯 {item.count} 次
                             </div>
                             <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                            
                             <div className="mt-1 pl-2">
-                              <div className="font-black text-slate-900 text-xl italic tracking-tight">{item.word.en}</div>
-                              <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                              {/* 詞性緊跟英文單字，改用簡約灰色斜體 */}
+                              <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2">
+                                {item.word.en}
+                                <span className="text-sm text-slate-400 font-bold italic tracking-widest">{item.word.pos}</span>
+                              </div>
+                              <div className="text-sm font-bold text-slate-600 mt-1">
                                 {item.word.zh}
-                                <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{item.word.pos}</span>
                               </div>
                             </div>
-                            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors mt-2" title="聽發音">
+                            
+                            <button onClick={() => playAudio(item.word.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors relative z-10 mt-2" title="聽發音">
                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                             </button>
                           </li>
@@ -7971,17 +8005,22 @@ if (direction === 'flashcard') {
                         {starredWords.map((enWord, idx) => {
                           const fullWordObj = fullList.find(w => w.en === enWord);
                           if (!fullWordObj) return null;
-                          return (
+                         return (
                             <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
                               <div className="absolute top-0 left-0 w-2 h-full bg-orange-400"></div>
+                              
                               <div className="pl-2">
-                                <div className="font-black text-slate-900 text-xl italic tracking-tight">{fullWordObj.en}</div>
-                                <div className="text-sm font-bold text-slate-600 mt-1 flex items-center gap-2">
+                                {/* 詞性緊跟英文單字，改用簡約灰色斜體 */}
+                                <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2">
+                                  {fullWordObj.en}
+                                  <span className="text-sm text-slate-400 font-bold italic tracking-widest">{fullWordObj.pos}</span>
+                                </div>
+                                <div className="text-sm font-bold text-slate-600 mt-1">
                                   {fullWordObj.zh}
-                                  <span className="text-[10px] bg-yellow-300 border-2 border-slate-900 text-slate-900 px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0_0_#1e293b]">{fullWordObj.pos}</span>
                                 </div>
                               </div>
-                              <button onClick={(e) => toggleStar(fullWordObj.en, e)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
+                              
+                              <button onClick={(e) => toggleStar(fullWordObj.en, e)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors relative z-10" title="取消標記">
                                  ✖
                               </button>
                             </li>
@@ -7997,7 +8036,8 @@ if (direction === 'flashcard') {
                     <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
                       CLEAR ERRORS 
                     </button>
-                  ) : rightTab === 'history' ? (
+                  ) : 
+rightTab === 'history' ? (
                     <React.Fragment>
                       {mode === 'battle' ? (
                         <button disabled className="w-full py-3 text-sm text-white bg-slate-500 border-4 border-slate-900 rounded-xl font-black uppercase opacity-50 cursor-not-allowed shadow-none">
