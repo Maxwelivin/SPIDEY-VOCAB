@@ -17,6 +17,9 @@
 
     const VOCABULARY = [
       
+
+
+
 { en: "afternoon", zh: "下午", pos: "n.", b: "L0", ex: "We have an English test this afternoon, so everyone is studying hard now.", ex_zh: "我們今天下午有一場英文考試，所以大家現在都在努力溫書。" },
 { en: "evening", zh: "傍晚", pos: "n.", b: "L0", ex: "Our family enjoys walking in the park in the evening to watch the beautiful sunset.", ex_zh: "我們全家喜歡在傍晚時分去公園散步，欣賞美麗的日落。" },
 { en: "fine", zh: "美好的", pos: "adj.", b: "L0", ex: "The weather is fine today, making it perfect for an outdoor picnic.", ex_zh: "今天天氣很好，非常適合進行戶外野餐。" },
@@ -1602,7 +1605,6 @@
 { en: "such as", zh: "像是…", pos: "phr.", b: "L6", ex: "She likes to play team sports such as basketball and volleyball.", ex_zh: "她喜歡進行團體運動，像是籃球和排球。" },
 { en: "after all", zh: "畢竟", pos: "phr.", b: "L6", ex: "Don't be too hard on him; after all, he is still a child.", ex_zh: "別對他太苛刻；畢竟，他還只是個孩子。" },
 { en: "above all", zh: "最重要的是", pos: "phr.", b: "L6", ex: "To get good grades, above all, you must pay attention in class.", ex_zh: "要想拿到好成績，最重要的是，你必須在課堂上專心。" },
-      
     
 
 
@@ -1640,7 +1642,8 @@
 const [mobileTab, setMobileTab] = useState('training');
 
 
-
+// 控制 ROUNDS 列表的手風琴展開狀態 (紀錄當前展開的索引)
+const [expandedRoundIdx, setExpandedRoundIdx] = useState(null);
 
 
 
@@ -3095,15 +3098,28 @@ if (direction === 'flashcard') {
                                   </div>
                                   <div className="absolute top-0 left-0 w-2 h-full bg-red-500"></div>
                                   
-                                  <div className="pl-2 mt-1">
-                                    <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2">
-                                      {err.en}
-                                      <span className="text-sm text-slate-400 font-bold italic tracking-widest">{err.pos}</span>
-                                    </div>
-                                    <div className="text-sm font-bold text-slate-600 mt-1">
-                                      {err.zh}
-                                    </div>
-                                  </div>
+                                  <div className="pl-2 mt-1 pr-4"> {/* 新增 pr-4 避免文字與右側按鈕過於擁擠 */}
+  <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2">
+    {err.en}
+    <span className="text-sm text-slate-400 font-bold italic tracking-widest">{err.pos}</span>
+  </div>
+  <div className="text-sm font-bold text-slate-600 mt-1">
+    {err.zh}
+  </div>
+  
+  {/* ===== 以下為新增的例句渲染區塊 ===== */}
+  {err.ex && (
+    <div className="mt-2 pt-2 border-t-2 border-dashed border-slate-200">
+      <div className="text-[13px] font-bold text-slate-700 italic leading-snug">
+        {err.ex}
+      </div>
+      <div className="text-[11px] font-black text-slate-400 mt-1">
+        {err.ex_zh}
+      </div>
+    </div>
+  )}
+  {/* =================================== */}
+</div>
                                   
                                   <button onClick={() => playAudio(err.en)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors relative z-10 mt-2" title="聽發音">
                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
@@ -3157,17 +3173,75 @@ if (direction === 'flashcard') {
                       </div>
                     ) : (
                       <ul className="space-y-3">
-                        {roundRecords.map((round, idx) => (
-                          <li key={idx} onClick={() => startSpecificRound(round)} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-center shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden cursor-pointer">
-                            <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
-                            <div className="pl-2">
-                              <div className="font-black text-slate-900 text-xl italic tracking-tight">Round {idx + 1}</div>
-                              <div className="text-sm font-bold text-slate-500 mt-1">包含 {round.length} 個單字</div>
-                            </div>
-                            <button className="bg-green-400 text-slate-900 px-3 py-1 font-black border-2 border-slate-900 rounded shadow-[2px_2px_0_0_#1e293b]">複習</button>
-                          </li>
-                        ))}
-                      </ul>
+  {roundRecords.map((round, idx) => {
+    // 判斷當前這個 Round 是否處於展開狀態
+    const isExpanded = expandedRoundIdx === idx;
+    
+    return (
+      <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex flex-col shadow-[4px_4px_0_0_#1e293b] transition-all relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
+        
+        {/* === 標題列：點擊觸發展開 / 收合 === */}
+        <div 
+          className="flex justify-between items-center cursor-pointer group"
+          onClick={() => setExpandedRoundIdx(isExpanded ? null : idx)}
+        >
+          <div className="pl-2">
+            <div className="font-black text-slate-900 text-xl italic tracking-tight group-hover:text-green-600 transition-colors">
+              Round {idx + 1}
+            </div>
+            <div className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
+              包含 {round.length} 個單字 
+              <span className="text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
+                {isExpanded ? '收合 ▲' : '展開 ▼'}
+              </span>
+            </div>
+          </div>
+          
+          {/* === 獨立按鈕：點擊觸發複習，並阻擋事件冒泡 === */}
+          <button 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              startSpecificRound(round); 
+            }} 
+            className="bg-green-400 text-slate-900 px-4 py-2 font-black border-2 border-slate-900 rounded-lg shadow-[2px_2px_0_0_#1e293b] hover:-translate-y-1 transition-transform uppercase tracking-wide"
+          >
+            複習
+          </button>
+        </div>
+
+        {/* === 內容展開區：渲染 50 個單字與例句 === */}
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t-4 border-slate-900 border-dashed space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 animate-fade-in">
+            {round.map((wordObj, wIdx) => (
+              <div key={wIdx} className="bg-slate-50 p-3 rounded-lg border-2 border-slate-900 shadow-[2px_2px_0_0_#cbd5e1]">
+                <div className="font-black text-slate-900 text-lg italic flex items-baseline gap-2">
+                  {wordObj.en}
+                  <span className="text-[11px] text-slate-400 font-bold italic tracking-widest">{wordObj.pos}</span>
+                </div>
+                <div className="text-sm font-bold text-slate-600 mt-1">
+                  {wordObj.zh}
+                </div>
+                
+                {/* 沿用稍早建立的次要視覺層次來顯示例句 */}
+                {wordObj.ex && (
+                  <div className="mt-2 pt-2 border-t-2 border-dashed border-slate-200">
+                    <div className="text-[12px] font-bold text-slate-700 italic leading-snug">
+                      {wordObj.ex}
+                    </div>
+                    <div className="text-[10px] font-black text-slate-400 mt-1">
+                      {wordObj.ex_zh}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </li>
+    );
+  })}
+</ul>
                     )
                   ) : rightTab === 'starred' ? (
                     starredWords.length === 0 ? (
