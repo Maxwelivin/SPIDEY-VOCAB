@@ -6672,6 +6672,7 @@ const undoStackRef = useRef(undoStack);
       const battleIndexRef = useRef(battleIndex);
       const battleStepRef = useRef(battleStep);
 const starredWordsRef = useRef(starredWords);
+const unknownExampleWordsRef = useRef(unknownExampleWords);
 
       useEffect(() => { errorListRef.current = errorList; }, [errorList]);
 useEffect(() => { historicalErrorsRef.current = historicalErrors; }, [historicalErrors]);
@@ -6683,6 +6684,7 @@ useEffect(() => { undoStackRef.current = undoStack; }, [undoStack]);
       useEffect(() => { battleIndexRef.current = battleIndex; }, [battleIndex]);
       useEffect(() => { battleStepRef.current = battleStep; }, [battleStep]);
 useEffect(() => { starredWordsRef.current = starredWords; }, [starredWords]);
+useEffect(() => { unknownExampleWordsRef.current = unknownExampleWords; }, [unknownExampleWords]);
 
       // 移除 feedback?.status === 'wrong'，保持輸入框開啟
 const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status === 'correct';
@@ -6937,6 +6939,8 @@ useEffect(() => { localStorage.setItem(`vocab_examword_${selectedBook}`, JSON.st
           activeList = errorListRef.current;
         } else if (currentMode === 'starred') {
           activeList = fullList.filter(w => starredWordsRef.current.includes(w.en));
+        } else if (currentMode === 'cloze') {
+          activeList = unknownExampleWordsRef.current.map(exampleWordToVocabEntry);
         }
         if (activeList.length === 0) {
           setCurrentWord(null);
@@ -7458,6 +7462,43 @@ if (direction === 'flashcard') {
         });
       };
 
+      const requestRemoveExampleWord = (word) => {
+        setConfirmModal({
+          isOpen: true,
+          title: '🗑️ 取消標記',
+          message: `確定要取消標記「${word}」嗎？這個單字的中文/例句備註也會一併刪除。`,
+          onConfirm: () => {
+            setUnknownExampleWords(prev => prev.filter(w => w.word !== word));
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          },
+          showCancel: true
+        });
+      };
+
+      // 把「例句生字」的一筆資料，還原成跟 VOCABULARY 一樣形狀的單字物件（比對得到就用比對到的原形字，否則就用手動輸入的內容）
+      const exampleWordToVocabEntry = (item) => {
+        const m = findVocabMatch(item.word);
+        return {
+          en: m ? m.entry.en : item.word,
+          zh: item.zh !== undefined ? item.zh : (m ? m.entry.zh : ''),
+          pos: m ? m.entry.pos : '',
+          b: selectedBook,
+          ex: item.ex !== undefined ? item.ex : (m ? m.entry.ex : ''),
+          ex_zh: item.exZh !== undefined ? item.exZh : (m ? m.entry.ex_zh : '')
+        };
+      };
+
+      const recallExampleWordsToErrors = () => {
+        const wordsToRecall = unknownExampleWords.map(item => ({ ...exampleWordToVocabEntry(item), streak: 0 }));
+        setErrorList(prev => {
+          const newList = [...prev];
+          wordsToRecall.forEach(w => { if (!newList.some(x => x.en === w.en)) newList.push(w); });
+          return newList;
+        });
+        setRightTab('current');
+        setMode('errors');
+      };
+
       const recallHistoricalErrors = () => {
         const topWords = sortedHistory.slice(0, 10).map(item => item.word);
         if (topWords.length === 0) return;
@@ -7595,6 +7636,7 @@ if (direction === 'flashcard') {
                     <option value="all"> 自由訓練</option>
                     <option value="errors" disabled={errorList.length === 0}> 錯題特訓 ({errorList.length})</option>
                     <option value="starred" disabled={starredWords.length === 0}> 星號強化 ({starredWords.length})</option>
+                    <option value="cloze" disabled={unknownExampleWords.length === 0}> 克漏字練習 ({unknownExampleWords.length})</option>
                     <option value="list"> 總覽列表</option>
                   </select>
                   
@@ -8234,9 +8276,9 @@ if (direction === 'flashcard') {
                           const isAutoMatched = !!match && !match.guessed;
                           const isGuessedMatch = !!match && match.guessed;
                           return (
-                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-start shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden shrink-0">
+                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 grid grid-cols-[1fr_auto] gap-3 items-start shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden shrink-0">
                             <div className="absolute top-0 left-0 w-2 h-full bg-pink-400"></div>
-                            <div className="pl-2 pr-3 flex-1 min-w-0">
+                            <div className="pl-2 min-w-0">
                               <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2 flex-wrap">
                                 {item.word}
                                 {match && match.entry.pos && <span className="text-sm text-slate-400 font-bold italic tracking-widest">{match.entry.pos}</span>}
@@ -8253,7 +8295,8 @@ if (direction === 'flashcard') {
                                 value={displayZh}
                                 onChange={(e) => updateExampleWordField(item.word, 'zh', e.target.value)}
                                 placeholder="尚無中文，點此輸入..."
-                                className="mt-1 w-full text-sm font-bold text-slate-600 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 py-0.5 placeholder:text-slate-300 placeholder:font-normal"
+                                style={{ width: '100%' }}
+                                className="block mt-1 w-full text-sm font-bold text-slate-600 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 py-0.5 placeholder:text-slate-300 placeholder:font-normal"
                               />
 
                               <div className="mt-2 pt-2 border-t-2 border-dashed border-slate-200">
@@ -8262,25 +8305,27 @@ if (direction === 'flashcard') {
                                   onChange={(e) => updateExampleWordField(item.word, 'ex', e.target.value)}
                                   placeholder="尚無例句，可從字典查詢後貼上..."
                                   rows={2}
-                                  className="w-full text-[13px] font-bold italic text-slate-700 leading-snug bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal placeholder:not-italic"
+                                  style={{ width: '100%' }}
+                                  className="block w-full text-[13px] font-bold italic text-slate-700 leading-snug bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal placeholder:not-italic"
                                 />
                                 <textarea
                                   value={displayExZh}
                                   onChange={(e) => updateExampleWordField(item.word, 'exZh', e.target.value)}
                                   placeholder="尚無例句翻譯..."
                                   rows={1}
-                                  className="mt-1 w-full text-[11px] font-black text-slate-400 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal"
+                                  style={{ width: '100%' }}
+                                  className="block mt-1 w-full text-[11px] font-black text-slate-400 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal"
                                 />
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 relative z-10 shrink-0 mt-1">
+                            <div className="flex flex-col items-center gap-2 relative z-10 mt-1">
                               <button onClick={() => playAudio(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                               </button>
                               <button type="button" onClick={() => openDictionaryLink(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-indigo-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="查劍橋英漢字典（用 Safari 開啟）">
                                 🔎
                               </button>
-                              <button onClick={() => setUnknownExampleWords(prev => prev.filter(w => w.word !== item.word))} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
+                              <button onClick={() => requestRemoveExampleWord(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
                                 ✖
                               </button>
                             </div>
@@ -8352,11 +8397,16 @@ rightTab === 'history' ? (
                       </button>
                     </React.Fragment>
                   ) : rightTab === 'examwords' ? (
-                    <button onClick={() => {
-                      if(window.confirm('確定要清空所有例句生字標記嗎？')) setUnknownExampleWords([]);
-                    }} disabled={unknownExampleWords.length === 0} className="w-full py-3 text-sm text-white bg-pink-600 hover:bg-pink-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
-                      CLEAR EXAMPLE WORDS
-                    </button>
+                    <React.Fragment>
+                      <button onClick={recallExampleWordsToErrors} disabled={unknownExampleWords.length === 0} className="w-full py-3 text-sm text-slate-900 bg-orange-400 hover:bg-orange-300 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                        加入錯題特訓
+                      </button>
+                      <button onClick={() => {
+                        if(window.confirm('確定要清空所有例句生字標記嗎？')) setUnknownExampleWords([]);
+                      }} disabled={unknownExampleWords.length === 0} className="w-full py-3 text-sm text-white bg-pink-600 hover:bg-pink-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                        CLEAR EXAMPLE WORDS
+                      </button>
+                    </React.Fragment>
                   ) : null}
                 </div>
               </div>
