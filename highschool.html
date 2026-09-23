@@ -6568,6 +6568,18 @@ const updateExampleWordField = (word, field, value) => {
   setUnknownExampleWords(prev => prev.map(item => item.word === word ? { ...item, [field]: value } : item));
 };
 
+// 查字典時強制用 Safari 本體開啟（而不是停留在「加入主畫面」後的獨立視窗內），
+// 這樣複製完定義可以直接切回本 App，不用在同一個視窗的瀏覽紀錄裡按返回。
+// x-safari- 前綴是 iOS 對「已加入主畫面」網頁應用的非官方支援寫法；一般瀏覽器分頁開啟則維持原本 target=_blank 行為。
+const openDictionaryLink = (word) => {
+  const url = `https://dictionary.cambridge.org/dictionary/english-chinese-traditional/${encodeURIComponent(word)}`;
+  if (window.navigator.standalone) {
+    window.location.href = 'x-safari-' + url;
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
+
 // 將例句拆成可點擊的單字，點一下就能標記/取消標記「看不懂的單字」
 const renderClickableSentence = (sentence, contextEn) => {
   if (!sentence) return sentence;
@@ -8222,11 +8234,12 @@ if (direction === 'flashcard') {
                           const isAutoMatched = !!match && !match.guessed;
                           const isGuessedMatch = !!match && match.guessed;
                           return (
-                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-start shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-start shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden shrink-0">
                             <div className="absolute top-0 left-0 w-2 h-full bg-pink-400"></div>
-                            <div className="pl-2 flex-1 min-w-0 pr-3">
+                            <div className="pl-2 pr-3 flex-1 min-w-0">
                               <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2 flex-wrap">
                                 {item.word}
+                                {match && match.entry.pos && <span className="text-sm text-slate-400 font-bold italic tracking-widest">{match.entry.pos}</span>}
                                 {isAutoMatched && <span className="text-[10px] text-green-600 font-black uppercase tracking-widest">自動比對</span>}
                                 {isGuessedMatch && <span className="text-[10px] text-amber-600 font-black uppercase tracking-widest" title="依常見詞形變化規則推測，可能不完全準確">推測比對</span>}
                               </div>
@@ -8240,30 +8253,33 @@ if (direction === 'flashcard') {
                                 value={displayZh}
                                 onChange={(e) => updateExampleWordField(item.word, 'zh', e.target.value)}
                                 placeholder="尚無中文，點此輸入..."
-                                className="mt-2 w-full text-sm font-bold text-slate-700 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-pink-400 focus:bg-white"
+                                className="mt-1 w-full text-sm font-bold text-slate-600 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 py-0.5 placeholder:text-slate-300 placeholder:font-normal"
                               />
-                              <textarea
-                                value={displayEx}
-                                onChange={(e) => updateExampleWordField(item.word, 'ex', e.target.value)}
-                                placeholder="尚無例句，可從字典查詢後貼上..."
-                                rows={2}
-                                className="mt-2 w-full text-xs font-bold italic text-slate-700 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 focus:bg-white resize-none"
-                              />
-                              <textarea
-                                value={displayExZh}
-                                onChange={(e) => updateExampleWordField(item.word, 'exZh', e.target.value)}
-                                placeholder="尚無例句翻譯..."
-                                rows={1}
-                                className="mt-1 w-full text-xs font-bold text-slate-500 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 focus:bg-white resize-none"
-                              />
+
+                              <div className="mt-2 pt-2 border-t-2 border-dashed border-slate-200">
+                                <textarea
+                                  value={displayEx}
+                                  onChange={(e) => updateExampleWordField(item.word, 'ex', e.target.value)}
+                                  placeholder="尚無例句，可從字典查詢後貼上..."
+                                  rows={2}
+                                  className="w-full text-[13px] font-bold italic text-slate-700 leading-snug bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal placeholder:not-italic"
+                                />
+                                <textarea
+                                  value={displayExZh}
+                                  onChange={(e) => updateExampleWordField(item.word, 'exZh', e.target.value)}
+                                  placeholder="尚無例句翻譯..."
+                                  rows={1}
+                                  className="mt-1 w-full text-[11px] font-black text-slate-400 bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-0 resize-none placeholder:text-slate-300 placeholder:font-normal"
+                                />
+                              </div>
                             </div>
                             <div className="flex items-center gap-2 relative z-10 shrink-0 mt-1">
                               <button onClick={() => playAudio(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
                               </button>
-                              <a href={`https://dictionary.cambridge.org/dictionary/english-chinese-traditional/${encodeURIComponent(item.word)}`} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-900 hover:text-white hover:bg-indigo-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="查劍橋英漢字典">
+                              <button type="button" onClick={() => openDictionaryLink(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-indigo-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="查劍橋英漢字典（用 Safari 開啟）">
                                 🔎
-                              </a>
+                              </button>
                               <button onClick={() => setUnknownExampleWords(prev => prev.filter(w => w.word !== item.word))} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
                                 ✖
                               </button>
