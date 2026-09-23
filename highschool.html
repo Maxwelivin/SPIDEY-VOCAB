@@ -6438,6 +6438,64 @@ ex_zh: "這名醫學研究員在實驗室裡花了數年的時間研究細胞結
 
     ];
 
+    // 建立「英文單字 -> 完整單字資料（中文/例句/例句翻譯）」查詢表，供例句生字自動比對本地資料庫使用
+    const VOCAB_ENTRY_LOOKUP = {};
+    VOCABULARY.forEach(w => {
+      w.en.split('/').forEach(form => {
+        const key = form.trim().toLowerCase();
+        if (key && !(key in VOCAB_ENTRY_LOOKUP)) VOCAB_ENTRY_LOOKUP[key] = w;
+      });
+    });
+
+    // 針對常見規則型詞形變化（複數、三單、現在分詞、過去式、比較級/最高級）產生可能的原形，
+    // 用來在完全比對失敗時再試著猜一次；不規則變化（write/wrote、go/went 等）不在處理範圍內。
+    const stripDoubledConsonant = (base) => {
+      const last = base.slice(-1);
+      const prev = base.slice(-2, -1);
+      return (base.length > 2 && last === prev && !'aeiou'.includes(last)) ? base.slice(0, -1) : null;
+    };
+    const generateStemCandidates = (word) => {
+      const w = word.toLowerCase();
+      const candidates = [];
+      if (w.endsWith('ies') && w.length > 4) candidates.push(w.slice(0, -3) + 'y');
+      if (w.endsWith('ied') && w.length > 4) candidates.push(w.slice(0, -3) + 'y');
+      if (w.endsWith('es') && w.length > 3) candidates.push(w.slice(0, -2));
+      if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) candidates.push(w.slice(0, -1));
+      if (w.endsWith('ing') && w.length > 5) {
+        const base = w.slice(0, -3);
+        candidates.push(base, base + 'e');
+        const doubled = stripDoubledConsonant(base);
+        if (doubled) candidates.push(doubled);
+      }
+      if (w.endsWith('ed') && w.length > 4) {
+        const base = w.slice(0, -2);
+        candidates.push(base, base + 'e');
+        const doubled = stripDoubledConsonant(base);
+        if (doubled) candidates.push(doubled);
+      }
+      if (w.endsWith('est') && w.length > 4) {
+        const base = w.slice(0, -3);
+        candidates.push(base, base + 'e');
+        const doubled = stripDoubledConsonant(base);
+        if (doubled) candidates.push(doubled);
+      }
+      if (w.endsWith('er') && w.length > 3) {
+        const base = w.slice(0, -2);
+        candidates.push(base, base + 'e');
+        const doubled = stripDoubledConsonant(base);
+        if (doubled) candidates.push(doubled);
+      }
+      return candidates.filter(c => c.length >= 2);
+    };
+    const findVocabMatch = (word) => {
+      const lower = word.toLowerCase();
+      if (VOCAB_ENTRY_LOOKUP[lower]) return { entry: VOCAB_ENTRY_LOOKUP[lower], guessed: false };
+      for (const candidate of generateStemCandidates(lower)) {
+        if (VOCAB_ENTRY_LOOKUP[candidate]) return { entry: VOCAB_ENTRY_LOOKUP[candidate], guessed: true };
+      }
+      return null;
+    };
+
    const BOOK_LABELS = {
       "L1": "高中 Level 1 (精選百字)",
       "L2": "高中 Level 2 (進階字彙)",
@@ -6489,6 +6547,46 @@ const [roundRecords, setRoundRecords] = useState(() => {
 window._toggleStar = toggleStar;
 
 const [showOnlyStarred, setShowOnlyStarred] = useState(false);
+
+// 新增：標記例句中看不懂的單字（非本題主要單字）
+const [unknownExampleWords, setUnknownExampleWords] = useState(() => {
+  try { return JSON.parse(localStorage.getItem(`vocab_examword_${selectedBook}`)) || []; } catch(e) { return []; }
+});
+
+const toggleExampleWord = (rawToken, contextEn) => {
+  const clean = rawToken.replace(/[^a-zA-Z'-]/g, '').toLowerCase();
+  if (!clean) return;
+  setUnknownExampleWords(prev => {
+    const exists = prev.some(item => item.word === clean);
+    if (exists) return prev.filter(item => item.word !== clean);
+    return [...prev, { word: clean, from: contextEn || '' }];
+  });
+};
+
+// 手動編輯/補上例句生字的中文、例句、例句翻譯（若本地單字庫比對得到會先自動帶入，找不到才需要手動輸入；任何情況都能覆寫）
+const updateExampleWordField = (word, field, value) => {
+  setUnknownExampleWords(prev => prev.map(item => item.word === word ? { ...item, [field]: value } : item));
+};
+
+// 將例句拆成可點擊的單字，點一下就能標記/取消標記「看不懂的單字」
+const renderClickableSentence = (sentence, contextEn) => {
+  if (!sentence) return sentence;
+  return sentence.split(/(\s+)/).map((token, idx) => {
+    const clean = token.replace(/[^a-zA-Z'-]/g, '').toLowerCase();
+    if (!clean || /^_+$/.test(token)) return token;
+    const marked = unknownExampleWords.some(item => item.word === clean);
+    return (
+      <span
+        key={idx}
+        onClick={(e) => { e.stopPropagation(); toggleExampleWord(token, contextEn); }}
+        className={`cursor-pointer rounded transition-colors ${marked ? 'bg-pink-300 text-pink-900 underline decoration-2 decoration-pink-600' : 'hover:bg-yellow-200'}`}
+        title={marked ? '點擊取消標記這個單字' : '點擊標記為看不懂的單字'}
+      >
+        {token}
+      </span>
+    );
+  });
+};
 
 
       const [mode, setMode] = useState('all');
@@ -6586,6 +6684,8 @@ const isTerminalState = feedback?.status === 'unfamiliar' || feedback?.status ==
           setErrorList(loadedErr);
 const loadedStar = JSON.parse(localStorage.getItem(`vocab_star_${selectedBook}`)) || [];
           setStarredWords(loadedStar);
+          const loadedExamWords = JSON.parse(localStorage.getItem(`vocab_examword_${selectedBook}`)) || [];
+          setUnknownExampleWords(loadedExamWords);
           setPracticedWords(loadedPrac);
           setHistoricalErrors(loadedHist);
           setRoundRecords(loadedRounds); // 新增這行
@@ -6601,6 +6701,7 @@ const loadedStar = JSON.parse(localStorage.getItem(`vocab_star_${selectedBook}`)
       useEffect(() => { localStorage.setItem(`vocab_prac_${selectedBook}`, JSON.stringify(practicedWords)); }, [practicedWords, selectedBook]);
       useEffect(() => { localStorage.setItem(`vocab_hist_${selectedBook}`, JSON.stringify(historicalErrors)); }, [historicalErrors, selectedBook]);
 useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.stringify(starredWords)); }, [starredWords, selectedBook]);
+useEffect(() => { localStorage.setItem(`vocab_examword_${selectedBook}`, JSON.stringify(unknownExampleWords)); }, [unknownExampleWords, selectedBook]);
 
       const recordError = (wordObj) => {
         setErrorList(prev => {
@@ -6632,6 +6733,7 @@ useEffect(() => { localStorage.setItem(`vocab_star_${selectedBook}`, JSON.string
     // 👇 新增底下這兩行，將缺失的資料維度納入序列化打包清單中 👇
     backupData[`vocab_rounds_${b}`] = localStorage.getItem(`vocab_rounds_${b}`) || "[]";
     backupData[`vocab_star_${b}`] = localStorage.getItem(`vocab_star_${b}`) || "[]";
+    backupData[`vocab_examword_${b}`] = localStorage.getItem(`vocab_examword_${b}`) || "[]";
   });
   
   const jsonString = JSON.stringify(backupData, null, 2);
@@ -7630,7 +7732,7 @@ if (direction === 'flashcard') {
                                     </button>
                                   ) : (
                                     <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
-                                      <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">{currentWord.ex}</p>
+                                      <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">{renderClickableSentence(currentWord.ex, currentWord.en)}</p>
                                       <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
                                     </div>
                                   )
@@ -7702,7 +7804,7 @@ if (direction === 'flashcard') {
                                        ) : (
                                          <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
                                            <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">
-                                             {!isTerminalState && !isDictationRevealed ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex}
+                                             {renderClickableSentence(!isTerminalState && !isDictationRevealed ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex, currentWord.en)}
                                            </p>
                                            {(isTerminalState || isDictationRevealed) && currentWord.ex_zh && (
                                              <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
@@ -7729,7 +7831,7 @@ if (direction === 'flashcard') {
                                       ) : (
                                         <div className="p-4 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg w-full text-left overflow-y-auto custom-scrollbar max-h-32 animate-fade-in">
                                           <p className="text-slate-800 font-bold italic text-[1rem] leading-snug mb-1">
-                                            {askEnglish && !isTerminalState ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex}
+                                            {renderClickableSentence(askEnglish && !isTerminalState ? getHiddenSentence(currentWord.ex, currentWord) : currentWord.ex, currentWord.en)}
                                           </p>
                                           {isTerminalState && currentWord.ex_zh && (
                                             <p className="text-slate-500 text-xs font-black">{currentWord.ex_zh}</p>
@@ -7882,11 +7984,14 @@ if (direction === 'flashcard') {
                   <button onClick={() => setRightTab('history')} className={`py-3 font-black text-sm transition-colors border-b-4 border-slate-900 uppercase ${rightTab === 'history' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-blue-100'}`}>
                     HARD WORDS
                   </button>
-                  <button onClick={() => setRightTab('rounds')} className={`py-3 font-black text-sm transition-colors border-r-4 border-slate-900 uppercase ${rightTab === 'rounds' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-green-100'}`}>
+                  <button onClick={() => setRightTab('rounds')} className={`py-3 font-black text-sm transition-colors border-r-4 border-b-4 border-slate-900 uppercase ${rightTab === 'rounds' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-green-100'}`}>
                     ROUNDS
                   </button>
-                  <button onClick={() => setRightTab('starred')} className={`py-3 font-black text-sm transition-colors uppercase ${rightTab === 'starred' ? 'bg-orange-400 text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-orange-100'}`}>
+                  <button onClick={() => setRightTab('starred')} className={`py-3 font-black text-sm transition-colors border-b-4 border-slate-900 uppercase ${rightTab === 'starred' ? 'bg-orange-400 text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-orange-100'}`}>
                     STARRED ({starredWords.length})
+                  </button>
+                  <button onClick={() => setRightTab('examwords')} className={`col-span-2 py-3 font-black text-sm transition-colors uppercase ${rightTab === 'examwords' ? 'bg-pink-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-pink-100'}`}>
+                    例句生字 ({unknownExampleWords.length})
                   </button>
                 </div>
                 
@@ -8100,9 +8205,77 @@ if (direction === 'flashcard') {
                         })}
                       </ul>
                     )
+                  ) : rightTab === 'examwords' ? (
+                    unknownExampleWords.length === 0 ? (
+                      <div className="text-center text-slate-400 py-16 flex flex-col items-center">
+                        <span className="text-6xl mb-4 font-black text-slate-300">N/A</span>
+                        <p className="font-black text-slate-400 uppercase tracking-widest">尚未標記例句生字</p>
+                        <p className="text-xs font-bold text-slate-400 mt-2 px-4">練習時，直接點選例句中看不懂的單字即可標記</p>
+                      </div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {unknownExampleWords.map((item, idx) => {
+                          const match = findVocabMatch(item.word);
+                          const displayZh = item.zh !== undefined ? item.zh : (match ? match.entry.zh : '');
+                          const displayEx = item.ex !== undefined ? item.ex : (match ? match.entry.ex : '');
+                          const displayExZh = item.exZh !== undefined ? item.exZh : (match ? match.entry.ex_zh : '');
+                          const isAutoMatched = !!match && !match.guessed;
+                          const isGuessedMatch = !!match && match.guessed;
+                          return (
+                          <li key={idx} className="bg-white p-4 rounded-xl border-4 border-slate-900 flex justify-between items-start shadow-[4px_4px_0_0_#1e293b] hover:-translate-y-1 transition-transform group relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-2 h-full bg-pink-400"></div>
+                            <div className="pl-2 flex-1 min-w-0 pr-3">
+                              <div className="font-black text-slate-900 text-xl italic tracking-tight flex items-baseline gap-2 flex-wrap">
+                                {item.word}
+                                {isAutoMatched && <span className="text-[10px] text-green-600 font-black uppercase tracking-widest">自動比對</span>}
+                                {isGuessedMatch && <span className="text-[10px] text-amber-600 font-black uppercase tracking-widest" title="依常見詞形變化規則推測，可能不完全準確">推測比對</span>}
+                              </div>
+                              {item.from && (
+                                <div className="text-xs font-bold text-slate-400 mt-1">
+                                  出自：{item.from}
+                                </div>
+                              )}
+                              <input
+                                type="text"
+                                value={displayZh}
+                                onChange={(e) => updateExampleWordField(item.word, 'zh', e.target.value)}
+                                placeholder="尚無中文，點此輸入..."
+                                className="mt-2 w-full text-sm font-bold text-slate-700 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-pink-400 focus:bg-white"
+                              />
+                              <textarea
+                                value={displayEx}
+                                onChange={(e) => updateExampleWordField(item.word, 'ex', e.target.value)}
+                                placeholder="尚無例句，可從字典查詢後貼上..."
+                                rows={2}
+                                className="mt-2 w-full text-xs font-bold italic text-slate-700 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 focus:bg-white resize-none"
+                              />
+                              <textarea
+                                value={displayExZh}
+                                onChange={(e) => updateExampleWordField(item.word, 'exZh', e.target.value)}
+                                placeholder="尚無例句翻譯..."
+                                rows={1}
+                                className="mt-1 w-full text-xs font-bold text-slate-500 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 focus:bg-white resize-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 relative z-10 shrink-0 mt-1">
+                              <button onClick={() => playAudio(item.word)} className="p-2 text-slate-900 hover:text-white hover:bg-blue-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="聽發音">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" /></svg>
+                              </button>
+                              <a href={`https://dictionary.cambridge.org/dictionary/english-chinese-traditional/${encodeURIComponent(item.word)}`} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-900 hover:text-white hover:bg-indigo-600 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="查劍橋英漢字典">
+                                🔎
+                              </a>
+                              <button onClick={() => setUnknownExampleWords(prev => prev.filter(w => w.word !== item.word))} className="p-2 text-slate-900 hover:text-white hover:bg-red-500 bg-slate-100 rounded-full border-2 border-slate-900 shadow-[2px_2px_0_0_#1e293b] focus:outline-none transition-colors" title="取消標記">
+                                ✖
+                              </button>
+                            </div>
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    )
                   ) : null}
                 </div>
-                
+
                 <div className="p-5 border-t-4 border-slate-900 bg-slate-100 flex flex-col gap-3 shrink-0">
                   {rightTab === 'current' ? (
                     <button onClick={requestClearErrors} disabled={errorList.length === 0} className="w-full py-3 text-sm text-white bg-red-600 hover:bg-red-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
@@ -8162,6 +8335,12 @@ rightTab === 'history' ? (
                         CLEAR ALL STARS
                       </button>
                     </React.Fragment>
+                  ) : rightTab === 'examwords' ? (
+                    <button onClick={() => {
+                      if(window.confirm('確定要清空所有例句生字標記嗎？')) setUnknownExampleWords([]);
+                    }} disabled={unknownExampleWords.length === 0} className="w-full py-3 text-sm text-white bg-pink-600 hover:bg-pink-500 border-4 border-slate-900 rounded-xl font-black transition-transform hover:-translate-y-1 shadow-[4px_4px_0_0_#1e293b] disabled:opacity-50 disabled:hover:translate-y-0 uppercase">
+                      CLEAR EXAMPLE WORDS
+                    </button>
                   ) : null}
                 </div>
               </div>
