@@ -2288,6 +2288,9 @@ window._handleFlashcardGotIt = (word) => {
       useEffect(() => {
         const handleKeyDown = (e) => {
           if (document.activeElement.tagName === 'SELECT') return;
+          // 正在編輯其他欄位時，按鍵一律照常打字，不觸發練習快捷鍵
+          const ae = document.activeElement;
+          if (ae && ae !== inputRef.current && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.isContentEditable)) return;
           const { direction, isTerminalState, multipleChoiceOptions, currentWord, isFlipped } = stateRef.current;
           const isInputFocused = document.activeElement.tagName === 'INPUT';
 
@@ -2366,7 +2369,7 @@ if (direction === 'flashcard') {
       useEffect(() => {
         const handleGlobalClick = (e) => {
           if (mode === 'list' || direction === 'mcq-zh-en' || direction === 'mcq-en-zh' || isTerminalState) return;
-          if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') {
+          if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT' && !e.target.isContentEditable) {
             if (inputRef.current) inputRef.current.focus();
           }
         };
