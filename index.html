@@ -4,72 +4,116 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Spidey Vocab Multiverse</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./megaman.css">
+  <script src="./theme.js"></script>
   <style>
-    html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      background-color: #0f172a; 
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px 16px; box-sizing: border-box;
     }
-    
-    /* 蜘蛛人主題背景 */
-    .spider-bg {
-      background-color: #0f172a; 
-      background-image: 
-        radial-gradient(circle at 50% 0%, #1e1b4b 0%, transparent 70%),
-        radial-gradient(rgba(226, 54, 54, 0.15) 1.5px, transparent 1.5px),
-        radial-gradient(rgba(37, 99, 235, 0.15) 1.5px, transparent 1.5px);
-      background-size: 100% 100%, 20px 20px, 20px 20px;
-      background-position: 0 0, 0 0, 10px 10px;
-      background-attachment: fixed;
-    }
+    .pxf { font-family: var(--mm-pixel); }
 
-    /* 漫畫風公用類別 */
-    .comic-shadow { box-shadow: 8px 8px 0px 0px #0f172a; }
-    .comic-shadow-blue { box-shadow: 6px 6px 0px 0px #2563eb; }
-    
-    .active\:comic-pressed:active {
-      transform: translate(6px, 6px) scale(0.98) !important;
-      box-shadow: 0px 0px 0px 0px #0f172a !important;
-      transition: transform 0.08s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    .frame {
+      width: 100%; max-width: 440px;
+      background: var(--mm-panel);
+      border: 4px solid var(--mm-edge);
+      box-shadow: inset 0 0 0 4px var(--mm-edge-lo), 6px 6px 0 var(--mm-edge-lo);
+      padding: 28px 22px 24px;
+      position: relative;
+      animation: boot .5s steps(5) both;
     }
-    
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes boot { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+
+    .head { text-align: center; margin-bottom: 26px; }
+    .ready { font-size: 10px; color: var(--s-blue); letter-spacing: .1em; animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .logo { margin: 16px 0 6px; font-size: clamp(18px, 6vw, 26px); }
+    .logo span { display: block; color: var(--head2); text-shadow: 3px 3px 0 var(--head2-sh); }
+    .sub { font-size: 14px; color: var(--mm-muted); margin-top: 12px; }
+
+    .ttl {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10px; color: var(--head); margin: 0 0 14px;
+    }
+    .ttl::before, .ttl::after { content: ""; flex: 1; height: 4px; background: var(--mm-edge); }
+
+    .stages { display: grid; gap: 14px; }
+    .stage {
+      display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 14px;
+      padding: 10px 14px 10px 10px;
+      background: var(--field); color: var(--mm-text); text-decoration: none;
+      border: 4px solid var(--mm-edge);
+      box-shadow: 4px 4px 0 var(--mm-edge-lo);
+      transition: transform .08s steps(2);
+    }
+    .stage:hover, .stage:focus-visible { border-color: var(--head); outline: none; }
+    .stage:hover .arrow, .stage:focus-visible .arrow { visibility: visible; }
+    .stage:active { transform: translate(4px, 4px); box-shadow: none; }
+
+    .icon {
+      width: 64px; height: 64px; display: grid; place-items: center;
+      border: 4px solid var(--mm-edge-hi); box-shadow: inset 0 0 0 3px var(--mm-edge-lo);
+    }
+    .icon svg { width: 40px; height: 40px; shape-rendering: crispEdges; display: block; }
+    .s1 .icon { background: var(--mm-danger); }
+    .s2 .icon { background: var(--mm-x-blue); }
+    .s3 .icon { background: var(--mm-energy); }
+
+    .name { font-size: 17px; line-height: 1.35; }
+    .code { display: block; font-size: 8px; color: var(--mm-muted); margin-bottom: 6px; }
+    .arrow { visibility: hidden; font-size: 12px; color: var(--head); animation: blink .6s steps(1) infinite; }
+
+    .foot { margin-top: 22px; text-align: center; font-size: 8px; color: var(--mm-dim); }
+
+    @media (hover: none) { .arrow { visibility: visible; animation: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .frame, .ready, .arrow { animation: none; }
+    }
   </style>
 </head>
-<body class="text-slate-900 selection:bg-red-500 selection:text-white spider-bg flex items-center justify-center p-6">
+<body class="mm-bg">
 
-  <div class="w-full max-w-md bg-white rounded-3xl p-8 border-4 border-slate-900 comic-shadow relative overflow-hidden animate-fade-in">
-    
-    <!-- 背景裝飾 -->
-    <div class="absolute -right-6 -top-8 text-slate-100 text-9xl font-black italic pointer-events-none transform -rotate-12 z-0 select-none" style="font-family: 'Impact'">HUB</div>
-
-    <!-- 標題區塊 -->
-    <div class="relative z-10 flex flex-col items-center text-center mb-10">
-      <img src="https://cdn-icons-png.flaticon.com/512/1090/1090806.png" alt="Spidey Avatar" class="w-24 h-24 object-cover rounded-2xl border-4 border-slate-900 comic-shadow-blue transform -rotate-3 bg-white mb-4">
-      <h1 class="text-4xl font-black text-slate-900 tracking-tight italic leading-none" style="font-family: 'Impact'">SPIDEY VOCAB</h1>
-      <h2 class="text-3xl font-black text-blue-600 tracking-tight italic leading-none mt-1" style="font-family: 'Impact'">MULTIVERSE</h2>
-      <p class="text-slate-900 font-black tracking-widest text-xs mt-4 bg-yellow-300 inline-block px-3 py-1 transform rotate-2 border-2 border-slate-900">Choose the universe you want to enter</p>
+  <main class="frame">
+    <div class="head">
+      <div class="ready pxf">READY</div>
+      <h1 class="logo">SPIDEY VOCAB<span>MULTIVERSE</span></h1>
+      <div class="sub">選擇你要進入的宇宙</div>
     </div>
 
-    <!-- 傳送門按鈕區塊 -->
-    <div class="relative z-10 flex flex-col w-full space-y-5">
-      
-      <a href="./spiderman.html" class="block w-full py-5 bg-red-600 text-white font-black text-xl text-center rounded-xl border-4 border-slate-900 comic-shadow active:comic-pressed transition-transform tracking-widest">
-        Original Spider-Man
-      </a>
-      
-      <a href="./highschool.html" class="block w-full py-5 bg-blue-600 text-white font-black text-xl text-center rounded-xl border-4 border-slate-900 comic-shadow active:comic-pressed transition-transform tracking-widest">
-        The Amazing Spider-Man
-      </a>
-      
-      <a href="./juniorhighschool.html" class="block w-full py-5 bg-yellow-400 text-slate-900 font-black text-xl text-center rounded-xl border-4 border-slate-900 comic-shadow active:comic-pressed transition-transform tracking-widest">
-        MCU Spider-Man
+    <div class="ttl pxf">STAGE SELECT</div>
+
+    <nav class="stages">
+      <a class="stage s1" href="./spiderman.html">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 10 10"><path fill="#f8f8f8" d="M4 1h2v1H4zM3 2h4v1H3zM2 3h6v4H2zM3 7h4v1H3zM4 8h2v1H4z"/><path fill="#050b2c" d="M3 4h1v2H3zM6 4h1v2H6zM4 6h2v1H4z"/></svg>
+        </div>
+        <div class="name"><span class="code pxf">STAGE 01</span>Original Spider-Man</div>
+        <div class="arrow pxf">▶</div>
       </a>
 
-    </div>
-  </div>
+      <a class="stage s2" href="./highschool.html">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 10 10"><path fill="#f8f8f8" d="M1 2h3v6H1zM6 2h3v6H6zM4 3h2v5H4z"/><path fill="#0450c0" d="M2 3h1v1H2zM2 5h1v1H2zM7 3h1v1H7zM7 5h1v1H7zM4 8h2v1H4z"/></svg>
+        </div>
+        <div class="name"><span class="code pxf">STAGE 02</span>The Amazing Spider-Man</div>
+        <div class="arrow pxf">▶</div>
+      </a>
+
+      <a class="stage s3" href="./juniorhighschool.html">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 10 10"><path fill="#050b2c" d="M4 1h2v1H4zM3 2h4v1H3zM2 3h6v1H2zM4 4h2v5H4zM3 8h4v1H3z"/><path fill="#c87818" d="M3 4h1v1H3zM6 4h1v1H6z"/></svg>
+        </div>
+        <div class="name"><span class="code pxf">STAGE 03</span>MCU Spider-Man</div>
+        <div class="arrow pxf">▶</div>
+      </a>
+    </nav>
+
+    <div class="foot pxf">PRESS START</div>
+  </main>
 
 </body>
 </html>

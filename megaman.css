@@ -1,0 +1,309 @@
+/* ═══════════════════════════════════════════════
+   洛克人 X 像素主題（覆蓋 Tailwind 樣式，不動功能）
+   四種主題：<html data-theme="a|b|c|p">，由 theme.js 切換
+     A 深色・清晰閱讀   B 深藍外框＋米白卡片
+     C 淺色洛克人       P 全像素（掃描線）
+   ═══════════════════════════════════════════════ */
+
+/* ── 共用色 ── */
+:root {
+  --mm-x-blue: #0870f8;
+  --mm-cyan: #38e8f8;
+  --mm-energy: #f8e060;
+  --mm-energy-lo: #c87818;
+  --mm-clear: #58f898;
+  --mm-danger: #f84838;
+  --mm-orange: #f8a038;
+  --mm-pink: #f858a8;
+  --mm-purple: #b058f8;
+  --mm-ink: #0a1030;
+  --mm-pixel: "Press Start 2P", "DotGothic16", monospace;
+  --mm-dot: "DotGothic16", "PingFang TC", "Microsoft JhengHei", monospace;
+  --mm-clean: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+
+  /* 首頁等自訂元件沿用的舊變數名 */
+  --mm-bg: var(--page); --mm-panel: var(--s-bg); --mm-deep: var(--deep);
+  --mm-edge: var(--edge); --mm-edge-hi: var(--edge-hi); --mm-edge-lo: var(--shadow);
+  --mm-text: var(--s-fg); --mm-muted: var(--s-muted); --mm-dim: var(--s-dim);
+}
+
+/* ── B（預設）：深藍外框＋米白卡片 ── */
+:root, :root[data-theme="b"] {
+  --page: #07103a; --grid: #0c1a5c; --grid-w: 2px;
+  --field: #050b2c; --field-grid: rgba(56, 104, 248, .12);
+  --edge: #3868f8; --edge-hi: #a8d8ff; --shadow: #02061c; --deep: #050b2c;
+  --s-bg: #0a1650; --s-bg2: #13236e; --s-fg: #eef2fc; --s-muted: #9db4ea; --s-dim: #5a70b8;
+  --s-red: #ff8a7a; --s-blue: #6ee8f8; --s-green: #58f898; --s-gold: #f8e060;
+  --i-bg: #f7f2e4; --i-bg2: #ece5d0; --i-fg: #16204a; --i-muted: #5a6892; --i-dim: #9aa3be;
+  --i-red: #c8301c; --i-blue: #1f4fd0; --i-green: #117a44; --i-gold: #9a6400;
+  --n-blue: #17307e; --n-red: #4e1636; --n-green: #0f4640; --n-yellow: #43391a;
+  --head: #f8e060; --head-sh: #c87818; --head2: #38e8f8; --head2-sh: #0870f8;
+  --wm: rgba(56, 104, 248, .16);
+  --font: var(--mm-clean); --scan: 0;
+  color-scheme: dark;
+}
+
+/* ── A：深色・清晰閱讀 ── */
+:root[data-theme="a"] {
+  --page: #0b1450; --grid: #0e1a5c; --grid-w: 1px;
+  --field: #0a1447; --field-grid: rgba(56, 104, 248, .08);
+  --s-bg: #101d5e; --s-bg2: #172a78; --s-fg: #e6ecfa; --s-muted: #9db4ea; --s-dim: #6a80c0;
+  --i-bg: #13226a; --i-bg2: #1a2f82; --i-fg: #eef2fc; --i-muted: #a6bcef; --i-dim: #6a80c0;
+  --i-red: #ff8a7a; --i-blue: #6ee8f8; --i-green: #58f898; --i-gold: #f8e060;
+}
+
+/* ── C：淺色洛克人 ── */
+:root[data-theme="c"] {
+  --page: #dfe8fa; --grid: #cfdcf6; --grid-w: 2px;
+  --field: #eef3fd; --field-grid: rgba(24, 72, 200, .08);
+  --edge: #1848c8; --edge-hi: #0c2a80; --shadow: #0c2a80; --deep: #0c1a5c;
+  --s-bg: #ffffff; --s-bg2: #e4ecfb; --s-fg: #14204a; --s-muted: #52618e; --s-dim: #8a96b8;
+  --s-red: #c8301c; --s-blue: #1848c8; --s-green: #117a44; --s-gold: #9a6400;
+  --i-bg: #ffffff; --i-bg2: #eef3fd; --i-fg: #14204a; --i-muted: #52618e; --i-dim: #8a96b8;
+  --i-red: #c8301c; --i-blue: #1848c8; --i-green: #117a44; --i-gold: #9a6400;
+  --n-blue: #dce8ff; --n-red: #fde3de; --n-green: #d8f5e6; --n-yellow: #fff2c2;
+  --head: #1848c8; --head-sh: #a8c4f8; --head2: #c8401c; --head2-sh: #f8c8b8;
+  --wm: rgba(24, 72, 200, .08);
+  color-scheme: light;
+}
+
+/* ── P：全像素（原洛克人版） ── */
+:root[data-theme="p"] {
+  --s-fg: #f8f8f8; --s-muted: #88a8e8; --s-dim: #4a64b0;
+  --i-bg: #0a1650; --i-bg2: #13236e; --i-fg: #f8f8f8; --i-muted: #88a8e8; --i-dim: #4a64b0;
+  --i-red: #ff7a6a; --i-blue: #38e8f8; --i-green: #58f898; --i-gold: #f8e060;
+  --n-blue: #102a8a; --n-red: #5a1438; --n-green: #0c4a44; --n-yellow: #4a3a14;
+  --font: var(--mm-dot); --scan: 1;
+}
+
+/* ═════════ 文字色的層級機制 ═════════
+   每一層底色設定 --fg / --muted / --dim / --t-*，裡面的 text-slate-* 自動跟著變，
+   所以同一個 class 在深色面板上是淺字、在米白卡片上是深字。 */
+body {
+  --fg: var(--s-fg); --muted: var(--s-muted); --dim: var(--s-dim);
+  --t-red: var(--s-red); --t-blue: var(--s-blue); --t-green: var(--s-green); --t-gold: var(--s-gold);
+}
+
+/* ── 基底 ── */
+html, body { background-color: var(--page) !important; }
+body, body .font-sans, button, input, select, textarea { font-family: var(--font) !important; }
+body { color: var(--fg); }
+body * { font-style: normal !important; }
+.font-black, .font-extrabold { font-weight: 700 !important; }
+:root[data-theme="p"] body { -webkit-font-smoothing: none; }
+:root[data-theme="p"] :is(.font-black, .font-bold, .font-extrabold, .font-semibold) { font-weight: 400 !important; }
+:root[data-theme="p"] img { image-rendering: pixelated; }
+
+.spider-bg, .mm-bg {
+  background-color: var(--page) !important;
+  background-image:
+    linear-gradient(var(--grid) var(--grid-w), transparent var(--grid-w)),
+    linear-gradient(90deg, var(--grid) var(--grid-w), transparent var(--grid-w)) !important;
+  background-size: 32px 32px !important;
+  background-position: 0 0 !important;
+}
+.comic-halftone-bg, [class*="bg-[url"] {
+  background-color: var(--field) !important;
+  background-image:
+    linear-gradient(var(--field-grid) 2px, transparent 2px),
+    linear-gradient(90deg, var(--field-grid) 2px, transparent 2px) !important;
+  background-size: 16px 16px !important;
+}
+
+/* CRT 掃描線（只有 P） */
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 3px);
+  opacity: var(--scan);
+}
+
+/* ── 標題：8-bit 字 ── */
+h1 {
+  font-family: var(--mm-pixel) !important;
+  font-size-adjust: .5;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.3 !important;
+}
+h1:not([class*="text-blue"]) { color: var(--head) !important; text-shadow: 3px 3px 0 var(--head-sh) !important; }
+h1[class*="text-blue"] { color: var(--head2) !important; text-shadow: 3px 3px 0 var(--head2-sh) !important; }
+/* 內嵌 Impact：P 主題與大標題、浮水印用 8-bit 字；其他主題的題目單字改用清楚的粗體 */
+[style*="Impact"] { font-family: var(--mm-clean) !important; font-weight: 700 !important; letter-spacing: -.01em !important; }
+:root[data-theme="p"] [style*="Impact"], h1[style*="Impact"], .pointer-events-none[style*="Impact"] {
+  font-family: var(--mm-pixel) !important;
+  font-size-adjust: .5;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+}
+[style*="Impact"].text-slate-100, [style*="Impact"].text-slate-200,
+.pointer-events-none[style*="Impact"] { color: var(--wm) !important; text-shadow: none !important; }
+
+/* P 主題：英文小標籤也用 8-bit 字 */
+:root[data-theme="p"] :is(.uppercase.tracking-widest, .uppercase.tracking-wider, .text-xs.uppercase, .uppercase.tracking-tight):not(select, input, textarea, h1) {
+  font-family: var(--mm-pixel) !important;
+  font-size-adjust: .42;
+  letter-spacing: .02em !important;
+  line-height: 1.7 !important;
+}
+
+/* ── 方角 ── */
+[class*="rounded"], button, input, select, textarea { border-radius: 0 !important; }
+
+/* ── 硬陰影：一律改為像素影 ── */
+[class*="shadow-["], .comic-shadow, .comic-shadow-red, .comic-shadow-blue, .comic-shadow-yellow {
+  box-shadow: 4px 4px 0 0 var(--shadow) !important;
+}
+[class*="shadow-[2px"], [class*="shadow-[3px"], [class*="shadow-[-2px"], .comic-shadow-small {
+  box-shadow: 2px 2px 0 0 var(--shadow) !important;
+}
+[class*="shadow-[8px"], [class*="shadow-[12px"] { box-shadow: 6px 6px 0 0 var(--shadow) !important; }
+[class*="shadow-[80px"], [class*="shadow-[-80px"] { box-shadow: none !important; }
+.shadow-md, .shadow-sm, .shadow-lg, .shadow-xl { box-shadow: 3px 3px 0 0 var(--shadow) !important; }
+.shadow-none, [class*="active:shadow-none"]:active, .active\:comic-pressed:active { box-shadow: none !important; }
+.active\:comic-pressed:active { transform: translate(3px, 3px) !important; }
+
+/* ── 邊框 ── */
+.border-slate-900, .border-slate-800, .comic-border { border-color: var(--edge) !important; }
+.border-slate-200, .border-slate-300 { border-color: var(--s-bg2) !important; }
+.border-indigo-300, .border-blue-600 { border-color: var(--edge-hi) !important; }
+.border-red-400, .border-red-500, .border-red-600 { border-color: var(--mm-danger) !important; }
+.border-green-500, .border-green-600 { border-color: var(--mm-clear) !important; }
+.border-yellow-400 { border-color: var(--mm-energy) !important; }
+
+/* ── 面板（白卡片） ── */
+.bg-white, .bg-slate-50, .bg-slate-100 {
+  background-color: var(--s-bg) !important;
+  --fg: var(--s-fg); --muted: var(--s-muted); --dim: var(--s-dim);
+  --t-red: var(--s-red); --t-blue: var(--s-blue); --t-green: var(--s-green); --t-gold: var(--s-gold);
+}
+.bg-slate-200, .bg-slate-300 { background-color: var(--s-bg2) !important; }
+
+/* 內層卡片：閃卡、面板裡的卡片、單獨的大卡片（B 主題會變米白） */
+:is(.bg-white, .bg-slate-50, .bg-slate-100) :is(.bg-white, .bg-slate-50, .bg-slate-100):not(select, button, [class*="border-b-4"], [class*="border-t-4"], [class*="border-r-4"], [class*="rounded-full"], [class*="h-4"]),
+.bg-white:is([class*="rounded-2xl"], [class*="rounded-[1.5rem]"], [class*="rounded-[2rem]"]),
+.backface-hidden:is(.bg-white, .bg-slate-50, .bg-slate-100) {
+  background-color: var(--i-bg) !important;
+  --fg: var(--i-fg); --muted: var(--i-muted); --dim: var(--i-dim);
+  --t-red: var(--i-red); --t-blue: var(--i-blue); --t-green: var(--i-green); --t-gold: var(--i-gold);
+}
+:is(.bg-white, .bg-slate-50, .bg-slate-100) :is(.bg-white, .bg-slate-50, .bg-slate-100) :is(.bg-slate-50, .bg-slate-100):not(select, [class*="rounded-full"]) {
+  background-color: var(--i-bg2) !important;
+}
+
+.bg-slate-500, .bg-slate-700 { background-color: var(--s-dim) !important; }
+.bg-slate-800, .bg-slate-900 {
+  background-color: var(--deep) !important;
+  --fg: #f0f4ff; --muted: #a8b8e0; --dim: #6a80c0;
+}
+[class*="bg-slate-900/"] { background-color: rgba(2, 6, 28, .85) !important; }
+[class*="bg-white/"] { background-color: rgba(168, 216, 255, .18) !important; }
+
+/* 淡色底（答對答錯提示、標籤） */
+.bg-indigo-50, .bg-indigo-100, .bg-blue-50, .bg-blue-100 { background-color: var(--n-blue) !important; }
+.bg-red-50, .bg-red-100, .bg-red-200, .bg-pink-100 { background-color: var(--n-red) !important; }
+.bg-green-100, .bg-green-200 { background-color: var(--n-green) !important; }
+.bg-yellow-50, .bg-yellow-100, .bg-yellow-200, .bg-orange-100 { background-color: var(--n-yellow) !important; }
+:is(.bg-indigo-50, .bg-indigo-100, .bg-blue-50, .bg-blue-100, .bg-red-50, .bg-red-100, .bg-red-200, .bg-pink-100,
+    .bg-green-100, .bg-green-200, .bg-yellow-50, .bg-yellow-100, .bg-yellow-200, .bg-orange-100) {
+  --fg: var(--s-fg); --muted: var(--s-muted); --dim: var(--s-dim);
+  --t-red: var(--s-red); --t-blue: var(--s-blue); --t-green: var(--s-green); --t-gold: var(--s-gold);
+}
+
+/* 主色按鈕：X 藍、警示紅、能量黃、回復綠 */
+.bg-blue-500, .bg-blue-600, .bg-indigo-600 {
+  background-color: var(--mm-x-blue) !important;
+  box-shadow: inset 0 -4px 0 #0450c0, 4px 4px 0 0 var(--shadow) !important;
+}
+.bg-red-500, .bg-red-600, .bg-pink-600 {
+  background-color: var(--mm-danger) !important;
+  box-shadow: inset 0 -4px 0 #a81810, 4px 4px 0 0 var(--shadow) !important;
+}
+.bg-yellow-300, .bg-yellow-400, .bg-amber-300, .bg-amber-400 {
+  background-color: var(--mm-energy) !important;
+  box-shadow: inset 0 -4px 0 var(--mm-energy-lo), 4px 4px 0 0 var(--shadow) !important;
+}
+.bg-green-300, .bg-green-400, .bg-green-500, .bg-green-600 {
+  background-color: var(--mm-clear) !important;
+  box-shadow: inset 0 -4px 0 #18a858, 4px 4px 0 0 var(--shadow) !important;
+}
+.bg-orange-300, .bg-orange-400 {
+  background-color: var(--mm-orange) !important;
+  box-shadow: inset 0 -4px 0 #b86010, 4px 4px 0 0 var(--shadow) !important;
+}
+.bg-purple-500, .bg-purple-600 { background-color: var(--mm-purple) !important; }
+.bg-pink-300, .bg-pink-400, .bg-pink-500 { background-color: var(--mm-pink) !important; }
+.shadow-none:is(.bg-blue-500, .bg-blue-600, .bg-red-500, .bg-red-600, .bg-yellow-300, .bg-yellow-400, .bg-green-400) { box-shadow: none !important; }
+
+/* 亮底上的字一律深色 */
+:is(.bg-yellow-300, .bg-yellow-400, .bg-amber-300, .bg-amber-400, .bg-green-300, .bg-green-400,
+    .bg-green-500, .bg-green-600, .bg-orange-300, .bg-orange-400) {
+  --fg: var(--mm-ink); --muted: #3a3a50; --dim: #5a5a70;
+  --t-red: #a81810; --t-blue: #0c3aa8; --t-green: #0a5a30; --t-gold: #6a4400;
+  color: var(--mm-ink);
+}
+:is(.bg-yellow-300, .bg-yellow-400, .bg-amber-300, .bg-amber-400, .bg-green-300, .bg-green-400,
+    .bg-green-500, .bg-green-600, .bg-orange-300, .bg-orange-400):is(.text-white),
+:is(.bg-yellow-300, .bg-yellow-400, .bg-amber-300, .bg-amber-400, .bg-green-300, .bg-green-400,
+    .bg-green-500, .bg-green-600, .bg-orange-300, .bg-orange-400) .text-white { color: var(--mm-ink) !important; }
+
+/* ── 文字色 ── */
+.text-slate-900, .text-slate-800, .text-slate-700, .text-black { color: var(--fg) !important; }
+.text-slate-600, .text-slate-500, .text-slate-400 { color: var(--muted) !important; }
+.text-slate-300 { color: var(--dim) !important; }
+.text-slate-100 { color: var(--wm) !important; }
+.text-red-500, .text-red-600, .text-red-800, .text-pink-900 { color: var(--t-red) !important; }
+.text-blue-600, .text-blue-700, .text-blue-900, .text-indigo-700, .text-indigo-900 { color: var(--t-blue) !important; }
+.text-green-600 { color: var(--t-green) !important; }
+.text-amber-600 { color: var(--t-gold) !important; }
+
+/* ── 表單 ── */
+input, select, textarea { color: var(--fg) !important; }
+input::placeholder, textarea::placeholder { color: var(--dim) !important; }
+select option { background: var(--s-bg); color: var(--s-fg); }
+input:focus, select:focus, textarea:focus { outline: 3px solid var(--mm-energy) !important; outline-offset: 0; }
+
+/* ── 捲軸 ── */
+.custom-scrollbar::-webkit-scrollbar { width: 12px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: var(--s-bg2) !important; border-left: 4px solid var(--edge) !important; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: var(--mm-energy) !important; border: 2px solid var(--shadow) !important; border-radius: 0 !important; }
+
+/* ── 動效：8-bit 步進感 ── */
+.spidey-alert { animation: mmHit .36s steps(4) both !important; }
+@keyframes mmHit {
+  0%, 50% { filter: brightness(1.6) saturate(.3); transform: translateX(-4px); }
+  25%, 75% { filter: none; transform: translateX(4px); }
+  100% { filter: none; transform: none; }
+}
+.btn-thwip-effect:active::after {
+  content: 'PEW!' !important;
+  font-family: var(--mm-pixel) !important;
+  font-size: 14px !important;
+  color: var(--mm-energy) !important;
+  text-shadow: 2px 2px 0 var(--mm-energy-lo) !important;
+  transform: none !important;
+}
+
+/* ═════════ 主題切換按鈕（theme.js 產生） ═════════ */
+.mm-switch {
+  position: fixed; z-index: 10000;
+  right: 0; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: row; align-items: center; gap: 6px;
+  font-family: var(--mm-pixel);
+}
+.mm-switch button {
+  font-family: var(--mm-pixel) !important; font-size: 9px; line-height: 1;
+  color: #eef2fc; background: #0a1650; cursor: pointer;
+  border: 3px solid #3868f8; box-shadow: 3px 3px 0 #02061c;
+  padding: 8px 9px; min-height: 34px;
+}
+.mm-switch button:active { transform: translate(3px, 3px); box-shadow: none; }
+.mm-switch button:focus-visible { outline: 3px solid var(--mm-energy) !important; }
+.mm-switch .mm-toggle { width: 30px; height: 44px; padding: 0; display: grid; place-items: center; border-right: 0; box-shadow: none; opacity: .85; }
+.mm-switch .mm-toggle:hover, .mm-switch.open .mm-toggle { opacity: 1; }
+.mm-switch .mm-toggle svg { width: 16px; height: 16px; shape-rendering: crispEdges; display: block; }
+.mm-switch .mm-menu { display: none; flex-direction: column; gap: 6px; align-items: stretch; }
+.mm-switch.open .mm-menu { display: flex; }
+.mm-switch .mm-menu button { display: flex; align-items: center; gap: 8px; text-align: left; white-space: nowrap; }
+.mm-switch .mm-menu button span { font-family: var(--mm-clean); font-size: 13px; font-weight: 500; }
+.mm-switch .mm-menu button i { width: 14px; height: 14px; flex: none; border: 2px solid #02061c; }
+.mm-switch .mm-menu button[aria-pressed="true"] { border-color: var(--mm-energy); color: var(--mm-energy); }
